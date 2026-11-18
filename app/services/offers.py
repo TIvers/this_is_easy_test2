@@ -351,9 +351,6 @@ def restore_stream_draft(db: Session, campaign_id: int, stream_id: int) -> None:
 def add_offer(
     db: Session, client: KeitaroClient, campaign_id: int, stream_id: int, offer_id: int
 ) -> None:
-    offer_names = _offers_map(client)
-    if offer_id not in offer_names:
-        raise ValueError(f"Оффер {offer_id} не найден в Keitaro")
     try:
         draft = _ensure_offer_draft(db, client, campaign_id, stream_id)
         existing = next((offer for offer in draft.offers if offer.offer_id == offer_id), None)
@@ -363,11 +360,13 @@ def add_offer(
         if existing is not None:
             existing.is_deleted = False
             existing.is_new = existing.original_share is None
-            existing.name = offer_names[offer_id]
             existing.share = 0
             existing.pinned = False
             item = existing
         else:
+            offer_names = _offers_map(client)
+            if offer_id not in offer_names:
+                raise ValueError(f"Оффер {offer_id} не найден в Keitaro")
             item = DraftOffer(
                 offer_id=offer_id,
                 name=offer_names[offer_id],

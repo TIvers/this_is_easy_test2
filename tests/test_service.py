@@ -21,13 +21,20 @@ class FakeKeitaro:
         self.deleted = []
         self.deleted_streams = []
         self.updated = []
+        self.hidden_offers = set()
+        self.offer_list_calls = 0
         self.stream_offers = {
             10: [{"offer_id": 1, "share": 50}, {"offer_id": 2, "share": 50}],
             20: [{"offer_id": 1, "share": 100}],
         }
 
     def list_offers(self):
-        return [{"id": i, "name": f"Offer {i}"} for i in (1, 2, 3, 4)]
+        self.offer_list_calls += 1
+        return [
+            {"id": i, "name": f"Offer {i}"}
+            for i in (1, 2, 3, 4)
+            if i not in self.hidden_offers
+        ]
 
     def create_campaign(self, payload):
         self.campaigns.append(payload)
@@ -176,4 +183,23 @@ def test_base_stream_cannot_be_removed_and_other_deletions_wait_for_push(db):
 
     editor.push_all_drafts(db, kt, 777)
     assert kt.deleted_streams == [20]
+
+
+def test_restore_removed_offer_does_not_require_it_in_offer_catalog(db):
+    kt = FakeKeitaro()
+    editor.remove_offer(db, kt, 777, 10, 1)
+    calls_before_restore = kt.offer_list_calls
+    kt.hidden_offers.add(1)
+
+    editor.add_offer(db, kt, 777, 10, 1)
+    assert kt.offer_list_calls == calls_before_restore
+
+    restored = next(
+        offer
+        for offer in editor.get_view(db, kt, 777)["streams"][0]["offers"]
+        if offer["offer_id"] == 1
+    )
+    assert restored["is_deleted"] is False
+    assert restored["name"] == "Offer 1"
+    assert kt.updated == []
 
