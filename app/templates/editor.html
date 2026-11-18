@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Кампания #{{ kid }} — Adrobot{% endblock %}
+{% block content %}
+<section class="card toolbar">
+  <h1 id="title">Кампания #{{ kid }}</h1>
+  <div>
+    <label for="interval">Статистика:</label>
+    <select id="interval" style="width:auto">
+      <option value="today">Сегодня</option><option value="yesterday">Вчера</option>
+      <option value="last_7_days">7 дней</option><option value="last_30_days">30 дней</option>
+      <option value="this_month">Этот месяц</option><option value="all_time">Всё время</option>
+    </select>
+  </div>
+</section>
+<div id="error" class="msg err" role="alert"></div>
+<div id="streams"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const KID = {{ kid }};
+  const box = document.getElementById('streams');
+  const errorBox = document.getElementById('error');
+  const intervalSelect = document.getElementById('interval');
+  let view = null;
+  const money = value => Number(value || 0).toFixed(2);
+  const percent = value => Number(value || 0).toFixed(2) + '%';
+  const route = (streamId, suffix = '') => `/api/campaigns/${KID}/streams/${streamId}${suffix}`;
+
+  async function load() {
+    try {
+      view = await api('GET', `/api/campaigns/${KID}/editor?interval=${intervalSelect.value}`);
+      errorBox.textContent = '';
+      document.getElementById('title').textContent = `${view.campaign.name || 'Кампания'} (#${KID})`;
+      render();
+    } catch (error) {
+      errorBox.textContent = error.message;
+    }
+  }
+
+  async function act(action) {
+    try {
+      await action();
+      errorBox.textContent = '';
+    } catch (error) {
+      errorBox.textContent = error.message;
+    }
+    await load();
+  }
+
+  function render() {
+    box.innerHTML = view.streams.map(stream => {
+      const heading = `<h2>Поток #${esc(stream.position)}: ${esc(stream.name)} <span class="muted">(id ${stream.id})</span></h2>`;
+      if (!stream.editable) {
+        return `<section class="card">${heading}<p class="muted">Редирект${stream.action_payload ? ' → ' + esc(stream.action_payload) : ''}. Офферов нет.</p></section>`;
+      }
+
+      const rows = stream.offers.map(offer => `
+        <tr>
+          <td>${esc(offer.name)} <span class="muted">#${offer.offer_id}</span></td>
+          <td style="white-space:nowrap">
+            <input aria-label="Доля оффера ${offer.offer_id}" type="number" min="0" max="100" value="${offer.share}" style="width:76px"
+              onchange="setShare(${stream.id}, ${offer.offer_id}, this.value)"> %
+            ${offer.pinned ? `<button title="Открепить долю" aria-label="Открепить долю" onclick="unpin(${stream.id}, ${offer.offer_id})">📌</button>` : ''}
+          </td>
+          <td class="num">${esc(offer.stats.clicks)}</td>
+          <td class="num">${esc(offer.stats.conversions)}</td>
+          <td class="num">${money(offer.stats.revenue)}</td>
+          <td class="num">${percent(offer.stats.cr)}</td>
+          <td><button class="danger" onclick="removeOffer(${stream.id}, ${offer.offer_id})">Удалить</button></td>
+        </tr>`).join('');
+      const existing = new Set(stream.offers.map(offer => offer.offer_id));
+      const options = view.all_offers.filter(offer => !existing.has(offer.id))
+        .map(offer => `<option value="${offer.id}">${esc(offer.name)} (#${offer.id})</option>`).join('');
+      const balanced = stream.total === 100;
+      const draftButtons = stream.drafted ? `
+        <button class="primary" ${!balanced ? 'disabled' : ''} onclick="push(${stream.id})">Сохранить в Keitaro</button>
+        <button onclick="cancelDraft(${stream.id})">Отменить изменения</button>` : '';
+
+      return `<section class="card">
+        ${heading}
+        <div class="table-wrap"><table>
+          <thead><tr><th>Оффер</th><th>Доля</th><th class="num">Клики</th><th class="num">Конверсии</th><th class="num">Доход</th><th class="num">CR</th><th></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" class="muted">Добавьте хотя бы один оффер</td></tr>'}</tbody>
+        </table></div>
+        <p class="${balanced ? 'total-ok' : 'total-bad'}">Сумма долей: ${stream.total}%${balanced ? '' : ' (должно быть 100%)'}</p>
+        <form class="add-form" data-stream="${stream.id}">
+          <div class="row" style="align-items:end">
+            <div><label for="offer-${stream.id}">Добавить оффер</label><select id="offer-${stream.id}" name="offer_id" required>
+              <option value="">Выберите оффер…</option>${options}
+            </select></div>
+            <div><button type="submit" ${options ? '' : 'disabled'}>Добавить</button></div>
+            <div class="toolbar" style="justify-content:flex-start">${draftButtons}</div>
+          </div>
+        </form>
+      </section>`;
+    }).join('');
+
+    box.querySelectorAll('.add-form').forEach(form => form.addEventListener('submit', event => {
+      event.preventDefault();
+      const streamId = Number(form.dataset.stream);
+      const offerId = Number(new FormData(form).get('offer_id'));
+      act(() => api('POST', route(streamId, '/offers'), {offer_id: offerId}));
+    }));
+  }
+
+  function removeOffer(streamId, offerId) {
+    act(() => api('DELETE', route(streamId, `/offers/${offerId}`)));
+  }
+  function setShare(streamId, offerId, value) {
+    act(() => api('PUT', route(streamId, `/offers/${offerId}/share`), {share: Number(value)}));
+  }
+  function unpin(streamId, offerId) {
+    act(() => api('POST', route(streamId, `/offers/${offerId}/unpin`)));
+  }
+  function push(streamId) {
+    act(() => api('POST', route(streamId, '/push')));
+  }
+  function cancelDraft(streamId) {
+    act(() => api('DELETE', route(streamId, '/draft')));
+  }
+
+  intervalSelect.addEventListener('change', load);
+  load();
+</script>
+{% endblock %}

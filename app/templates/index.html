@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Adrobot — кампании{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Создать кампанию</h1>
+  <form id="create-form">
+    <div class="row">
+      <div><label for="name">Название</label><input id="name" name="name" required maxlength="255" placeholder="PL / Offer / Facebook"></div>
+      <div><label for="geo">Гео (ISO-код страны)</label><input id="geo" name="geo" required maxlength="2" pattern="[A-Za-z]{2}" placeholder="PL" style="text-transform:uppercase"></div>
+      <div><label for="offer_id">Оффер</label><select id="offer_id" name="offer_id" required></select></div>
+    </div>
+    <div class="row">
+      <div><label for="domain_id">Домен</label><select id="domain_id" name="domain_id" required></select></div>
+      <div><label for="group_id">Группа</label><select id="group_id" name="group_id" required></select></div>
+      <div><label for="source_id">Источник</label><select id="source_id" name="source_id" required></select></div>
+    </div>
+    <p><button class="primary" type="submit">Создать кампанию</button></p>
+    <div id="create-msg" class="msg" role="status"></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Открыть кампанию по ID из Keitaro</h2>
+  <form id="open-form" class="row" style="align-items:end">
+    <div><label for="campaign-id">ID кампании</label><input id="campaign-id" name="id" type="number" min="1" required></div>
+    <div><button type="submit">Открыть редактор</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Созданные здесь кампании</h2>
+  {% if campaigns %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Keitaro ID</th><th>Название</th><th>Гео</th><th>Оффер</th><th>Создана</th></tr></thead>
+      <tbody>{% for c in campaigns %}
+      <tr>
+        <td><a href="/campaigns/{{ c.keitaro_id }}">{{ c.keitaro_id }}</a></td>
+        <td>{{ c.name }}</td><td>{{ c.geo }}</td><td>{{ c.offer_id }}</td>
+        <td class="muted">{{ c.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      </tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">Пока ничего не создано.</p>{% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const form = document.getElementById('create-form');
+  const msg = document.getElementById('create-msg');
+  const fill = (select, items, selected) => {
+    select.innerHTML = '<option value="">Выберите…</option>' + items.map(item =>
+      `<option value="${esc(item.id)}" ${Number(item.id) === Number(selected) ? 'selected' : ''}>${esc(item.name)} (#${esc(item.id)})</option>`
+    ).join('');
+  };
+
+  api('GET', '/api/meta').then(meta => {
+    fill(form.offer_id, meta.offers);
+    fill(form.domain_id, meta.domains, meta.defaults.domain_id);
+    fill(form.group_id, meta.groups, meta.defaults.group_id);
+    fill(form.source_id, meta.sources, meta.defaults.source_id);
+  }).catch(error => {
+    msg.className = 'msg err';
+    msg.textContent = 'Не удалось загрузить справочники: ' + error.message;
+  });
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    msg.className = 'msg muted';
+    msg.textContent = 'Создаю кампанию…';
+    try {
+      const values = new FormData(form);
+      const result = await api('POST', '/api/campaigns', {
+        name: values.get('name'),
+        geo: values.get('geo'),
+        offer_id: Number(values.get('offer_id')),
+        domain_id: Number(values.get('domain_id')),
+        group_id: Number(values.get('group_id')),
+        source_id: Number(values.get('source_id'))
+      });
+      msg.className = 'msg ok';
+      msg.textContent = `Кампания #${result.keitaro_id} создана. Открываю редактор…`;
+      window.location.href = `/campaigns/${result.keitaro_id}`;
+    } catch (error) {
+      msg.className = 'msg err';
+      msg.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  document.getElementById('open-form').addEventListener('submit', event => {
+    event.preventDefault();
+    window.location.href = `/campaigns/${Number(new FormData(event.currentTarget).get('id'))}`;
+  });
+</script>
+{% endblock %}
