@@ -31,11 +31,11 @@ def test_list_groups_requests_campaign_group_type():
     assert groups == [{"id": 1, "name": "Campaign group", "type": "campaigns"}]
 
 
-def test_list_campaigns_and_delete_campaign_use_admin_api_endpoints():
+def test_campaign_list_update_and_delete_use_admin_api_endpoints():
     seen = []
 
     def handler(request):
-        seen.append((request.method, request.url.path))
+        seen.append((request.method, request.url.path, request.content))
         if request.method == "GET":
             return httpx.Response(200, json=[{"id": 12, "name": "Updated campaign"}])
         return httpx.Response(204)
@@ -47,12 +47,15 @@ def test_list_campaigns_and_delete_campaign_use_admin_api_endpoints():
     )
     try:
         campaigns = client.list_campaigns()
+        client.update_campaign(34, {"name": "Renamed"})
         client.delete_campaign(34)
     finally:
         client.close()
 
     assert campaigns == [{"id": 12, "name": "Updated campaign"}]
-    assert seen == [
+    assert [(method, path) for method, path, _ in seen] == [
         ("GET", "/admin_api/v1/campaigns"),
+        ("PUT", "/admin_api/v1/campaigns/34"),
         ("DELETE", "/admin_api/v1/campaigns/34"),
     ]
+    assert seen[1][2] == b'{"name":"Renamed"}'

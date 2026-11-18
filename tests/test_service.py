@@ -14,6 +14,8 @@ class FakeKeitaro:
         self.fail_second_stream = fail_second_stream
         self.campaigns = []
         self.streams = []
+        self.campaign_name = "Test"
+        self.campaign_name_updates = []
         self.remote_streams = [
             {"id": 10, "schema": "landings", "position": 1, "name": "Base offers"},
             {"id": 20, "schema": "landings", "position": 2, "name": "Other offers"},
@@ -41,7 +43,12 @@ class FakeKeitaro:
         return {"id": 777}
 
     def get_campaign(self, campaign_id):
-        return {"id": campaign_id, "name": "Test"}
+        return {"id": campaign_id, "name": self.campaign_name}
+
+    def update_campaign(self, campaign_id, payload):
+        self.campaign_name_updates.append((campaign_id, payload))
+        self.campaign_name = payload.get("name", self.campaign_name)
+        return {"id": campaign_id, "name": self.campaign_name}
 
     def create_stream(self, payload):
         if self.fail_second_stream and len(self.streams) == 1:
@@ -80,7 +87,11 @@ class FakeKeitaro:
 
     def update_stream(self, stream_id, payload):
         self.updated.append((stream_id, payload))
-        self.stream_offers[stream_id] = payload["offers"]
+        if "offers" in payload:
+            self.stream_offers[stream_id] = payload["offers"]
+        if "name" in payload:
+            remote = next(stream for stream in self.remote_streams if stream["id"] == stream_id)
+            remote["name"] = payload["name"]
 
     def delete_stream(self, stream_id):
         self.deleted_streams.append(stream_id)
@@ -169,6 +180,62 @@ def test_new_stream_and_offer_changes_wait_for_explicit_push(db):
     assert kt.streams[0]["offers"] == [
         {"offer_id": 3, "share": 100, "state": "active"}
     ]
+
+
+def test_campaign_and_non_base_stream_names_wait_for_confirmation(db):
+    kt = FakeKeitaro()
+    editor.set_campaign_name(db, kt, 777, "Test")
+    assert editor.get_view(db, kt, 777)["has_changes"] is False
+
+    editor.set_campaign_name(db, kt, 777, "  Renamed campaign  ")
+    editor.set_stream_name(db, kt, 777, 20, "Renamed stream")
+
+    view = editor.get_view(db, kt, 777)
+    assert view["campaign"]["name"] == "Renamed campaign"
+    assert view["campaign"]["name_changed"] is True
+    assert view["has_changes"] is True
+    assert next(stream for stream in view["streams"] if stream["id"] == 20)["name"] == "Renamed stream"
+    assert next(stream for stream in view["streams"] if stream["id"] == 20)["name_changed"] is True
+    assert kt.campaign_name_updates == []
+    assert kt.updated == []
+
+    assert editor.push_all_drafts(db, kt, 777) == 1
+    assert editor.push_campaign_name_draft(db, kt, 777) is True
+    assert kt.updated == [(20, {"name": "Renamed stream"})]
+    assert kt.campaign_name_updates == [(777, {"name": "Renamed campaign"})]
+    assert editor.get_view(db, kt, 777)["has_changes"] is False
+
+
+def test_stream_name_only_can_be_saved_without_offers(db):
+    kt = FakeKeitaro()
+    kt.remote_streams[1]["schema"] = "redirect"
+    kt.stream_offers[20] = []
+
+    editor.set_stream_name(db, kt, 777, 20, "Renamed redirect")
+    view = editor.get_view(db, kt, 777)
+    stream = next(stream for stream in view["streams"] if stream["id"] == 20)
+    assert stream["changed"] is True
+    assert stream["offers_changed"] is False
+    assert stream["editable"] is False
+
+    assert editor.push_all_drafts(db, kt, 777) == 1
+    assert kt.updated == [(20, {"name": "Renamed redirect"})]
+
+
+def test_first_stream_name_cannot_change_and_cancel_discards_name_drafts(db):
+    kt = FakeKeitaro()
+    with pytest.raises(ValueError, match="первого потока"):
+        editor.set_stream_name(db, kt, 777, 10, "Renamed base")
+
+    editor.set_campaign_name(db, kt, 777, "Renamed campaign")
+    editor.set_stream_name(db, kt, 777, 20, "Renamed stream")
+    editor.cancel_all_drafts(db, 777)
+
+    view = editor.get_view(db, kt, 777)
+    assert view["campaign"]["name"] == "Test"
+    assert view["has_changes"] is False
+    assert kt.campaign_name_updates == []
+    assert kt.updated == []
 
 
 def test_base_stream_cannot_be_removed_and_other_deletions_wait_for_push(db):

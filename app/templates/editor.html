@@ -1,8 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Кампания #{{ kid }} — Adrobot{% endblock %}
 {% block content %}
-<section class="card toolbar">
-  <h1 id="title">Кампания #{{ kid }}</h1>
+<section class="card toolbar" id="campaign-header">
+  <div class="campaign-heading">
+    <h1 id="title">Кампания #{{ kid }}</h1>
+    <form id="campaign-name-form" class="campaign-name-form">
+      <div>
+        <label for="campaign-name">Название кампании</label>
+        <input id="campaign-name" maxlength="255" required>
+      </div>
+      <button type="submit">Применить</button>
+    </form>
+  </div>
   <div>
     <label for="interval">Статистика:</label>
     <select id="interval" style="width:auto">
@@ -48,8 +57,13 @@
       view = await api('GET', `/api/campaigns/${KID}/editor?interval=${intervalSelect.value}`);
       errorBox.textContent = '';
       document.getElementById('title').textContent = `${view.campaign.name || 'Кампания'} (#${KID})`;
+      const campaignNameInput = document.getElementById('campaign-name');
+      campaignNameInput.value = view.campaign.name || '';
+      campaignNameInput.classList.toggle('pending-change', view.campaign.name_changed);
+      document.getElementById('campaign-header').classList.toggle('pending-stream', view.campaign.name_changed);
       saveButton.disabled = !view.has_changes || view.streams.some(stream =>
         stream.changed && !stream.is_deleted && stream.editable &&
+        (stream.is_new || stream.offers_changed) &&
         (stream.total !== 100 || stream.offers.every(offer => offer.is_deleted))
       );
       cancelButton.disabled = !view.has_drafts;
@@ -75,9 +89,17 @@
       const cardClass = stream.changed ? 'card pending-stream' : 'card';
       const streamId = stream.id;
       const streamLabel = stream.is_new ? 'новый, ещё не отправлен' : `id ${streamId}`;
-      const heading = `<h2>Поток #${esc(stream.position)}: ${esc(stream.name)}
-        <span class="muted">(${streamLabel})</span>
-        ${stream.is_base ? '<span class="muted">· базовый</span>' : ''}</h2>`;
+      const canRename = !stream.is_base && !stream.is_deleted;
+      const heading = `<div class="stream-title-row">
+        <h2>Поток #${esc(stream.position)}: ${esc(stream.name)}
+          <span class="muted">(${streamLabel})</span>
+          ${stream.is_base ? '<span class="muted">· базовый</span>' : ''}</h2>
+        ${canRename ? `<form class="stream-name-form" data-stream="${streamId}">
+          <input aria-label="Название потока" maxlength="255" required value="${esc(stream.name)}"
+            class="${stream.name_changed ? 'pending-change' : ''}">
+          <button type="submit">Применить</button>
+        </form>` : ''}
+      </div>`;
 
       if (stream.is_deleted) {
         return `<section class="${cardClass}">
@@ -154,8 +176,17 @@
       const offerId = Number(new FormData(form).get('offer_id'));
       addOffer(streamId, offerId);
     }));
+    box.querySelectorAll('.stream-name-form').forEach(form => form.addEventListener('submit', event => {
+      event.preventDefault();
+      const streamId = Number(form.dataset.stream);
+      stageName(route(streamId, '/name'), form.querySelector('input').value);
+    }));
   }
 
+  document.getElementById('campaign-name-form').addEventListener('submit', event => {
+    event.preventDefault();
+    stageName(`/api/campaigns/${KID}/name`, document.getElementById('campaign-name').value);
+  });
   document.getElementById('add-stream').addEventListener('click', () => {
     const name = document.getElementById('new-stream-name').value.trim() || null;
     act(() => api('POST', `/api/campaigns/${KID}/streams`, {name}));
@@ -163,6 +194,20 @@
   });
   saveButton.addEventListener('click', () => act(() => api('POST', `/api/campaigns/${KID}/push`)));
   cancelButton.addEventListener('click', () => act(() => api('DELETE', `/api/campaigns/${KID}/draft`)));
+
+  async function stageName(url, value) {
+    const name = value.trim();
+    if (!name) {
+      errorBox.textContent = 'Название не может быть пустым';
+      return;
+    }
+    try {
+      await api('PUT', url, {name});
+      await load();
+    } catch (error) {
+      errorBox.textContent = error.message;
+    }
+  }
 
   function addOffer(streamId, offerId) {
     act(() => api('POST', route(streamId, '/offers'), {offer_id: offerId}));

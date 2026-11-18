@@ -1,26 +1,26 @@
 # Adrobot
 
-Adrobot is a FastAPI + SQLAlchemy application for creating Keitaro campaigns and editing offers in existing campaign streams.
+Adrobot — приложение на FastAPI и SQLAlchemy для создания кампаний Keitaro и редактирования офферов в потоках существующих кампаний.
 
-## Features
+## Возможности
 
-- Creates a campaign with a country-filtered Google redirect stream and a fallback offer stream.
-- Loads domains, campaign groups, traffic sources, and offers from Keitaro.
-- Displays current names for saved campaigns from Keitaro and lets administrators delete campaigns from Keitaro.
-- Opens any existing campaign by its Keitaro ID.
-- Stages offer and stream changes locally; only the explicit save command writes them to Keitaro.
-- Keeps the first stream as the undeletable base stream and highlights pending changes in yellow.
-- Balances offer shares to 100% while respecting pinned shares and reserving at least 1% per unpinned offer.
-- Shows per-offer clicks, conversions, revenue, and CR for a selected reporting period.
+- Создаёт кампанию с потоком редиректа в Google для выбранной страны и резервным потоком с оффером.
+- Загружает из Keitaro домены, группы кампаний, источники трафика и офферы.
+- Показывает актуальные названия сохранённых кампаний и позволяет администраторам удалять кампании в Keitaro.
+- Открывает любую существующую кампанию по её ID в Keitaro.
+- Сохраняет изменения офферов, названия кампании и названий потоков (кроме первого) как локальные черновики. В Keitaro они отправляются только после явного подтверждения.
+- Запрещает удалять и переименовывать первый поток, подсвечивает ожидающие подтверждения изменения жёлтым.
+- Автоматически балансирует доли офферов до 100%, учитывая закреплённые доли и минимум 1% для каждого незакреплённого оффера.
+- Показывает клики, конверсии, доход и CR для каждого оффера за выбранный период.
 
-Deleting a campaign permanently removes it from Keitaro via the Admin API and clears its local campaign record and pending editor drafts. The operation requires explicit confirmation in the homepage campaign list.
+Удаление кампании безвозвратно удаляет её из Keitaro, а также очищает локальную запись и черновики редактора. Для операции требуется явное подтверждение в списке кампаний на главной странице.
 
-## Requirements
+## Требования
 
-- Python 3.11 (recommended; use a stable Python release)
-- A Keitaro instance and an Admin API key with access to campaigns, streams, offers, and reports.
+- Python 3.11 (рекомендуется; используйте стабильную версию Python).
+- Экземпляр Keitaro и ключ Admin API с доступом к кампаниям, потокам, офферам и отчётам.
 
-## Setup (Windows PowerShell)
+## Установка (Windows PowerShell)
 
 ```powershell
 py -3.11 -m venv .venv
@@ -29,60 +29,60 @@ python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Set `KEITARO_URL` to the Keitaro host (without `/admin_api/v1`) and add the Admin API key to `.env`. Never commit `.env` or paste a live key into source files. Optionally set the default domain, group, and source IDs; otherwise choose them in the campaign form.
+Укажите в `.env` адрес Keitaro в `KEITARO_URL` (без `/admin_api/v1`) и ключ Admin API. Никогда не добавляйте `.env` в репозиторий и не вставляйте действующий ключ в исходный код. При необходимости задайте ID домена, группы и источника по умолчанию; иначе выберите их в форме создания кампании.
 
-## Administrator login
+## Вход администратора
 
-The app has one administrator account configured outside the source code. Generate an Argon2 password hash:
+В приложении используется одна учётная запись администратора, настройки которой хранятся вне исходного кода. Сгенерируйте хэш пароля Argon2:
 
 ```powershell
 .\.venv\Scripts\python.exe -m app.password_hash
 ```
 
-Set the generated hash in `ADMIN_PASSWORD_HASH`, choose `ADMIN_USERNAME`, and set a persistent random `SESSION_SECRET_KEY` in `.env`. Generate the session key with:
+Укажите полученный хэш в `ADMIN_PASSWORD_HASH`, задайте `ADMIN_USERNAME` и сохраните постоянный случайный `SESSION_SECRET_KEY` в `.env`. Сгенерировать ключ сессии можно командой:
 
 ```powershell
 .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Do not put the plain administrator password in `.env`. Sessions use a signed, HTTP-only, SameSite=Lax cookie and expire after eight hours. Set `SESSION_COOKIE_SECURE=true` when serving the site through HTTPS; keep it `false` for local HTTP development.
+Не храните обычный пароль администратора в `.env`. Сессии подписаны, используют HTTP-only cookie с SameSite=Lax и истекают через восемь часов. При работе через HTTPS задайте `SESSION_COOKIE_SECURE=true`; для локальной разработки по HTTP оставьте значение `false`.
 
-## Database migrations
+## Миграции базы данных
 
-Apply migrations before starting the application:
+Перед запуском приложения примените миграции:
 
 ```powershell
 alembic upgrade head
 ```
 
-To create a migration after changing SQLAlchemy models:
+Чтобы создать миграцию после изменения моделей SQLAlchemy:
 
 ```powershell
-alembic revision --autogenerate -m "describe the change"
+alembic revision --autogenerate -m "описание изменений"
 alembic upgrade head
 ```
 
-The default database is SQLite at `./adrobot.db`. Set `DATABASE_URL` to another SQLAlchemy URL to use a different database.
+По умолчанию используется SQLite-база `./adrobot.db`. Чтобы использовать другую базу данных, укажите соответствующий SQLAlchemy URL в `DATABASE_URL`.
 
-## Run
+## Запуск
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-Open <http://127.0.0.1:8000> and sign in. Interactive API documentation at <http://127.0.0.1:8000/docs> is also protected by login.
+Откройте <http://127.0.0.1:8000> и войдите в систему. Интерактивная документация API по адресу <http://127.0.0.1:8000/docs> также защищена авторизацией.
 
-## Deployment to `adrobot.iversdev.ru` (Ubuntu + Nginx)
+## Развёртывание на `adrobot.iversdev.ru` (Ubuntu + Nginx)
 
-The local deployment branch is `deploy/adrobot-nginx`. Push it to the configured remote after committing the changes:
+Ветка для развёртывания — `deploy/adrobot-nginx`. После коммита изменений отправьте её в настроенный удалённый репозиторий:
 
 ```powershell
 git push -u origin deploy/adrobot-nginx
 ```
 
-The repository includes an HTTP reverse-proxy config at `deploy/nginx/adrobot.iversdev.ru.conf` and a systemd unit at `deploy/systemd/adrobot.service`. Before deploying, point the domain's DNS A record at the server's public IP and allow inbound ports 80 and 443.
+В репозитории находятся конфигурация обратного прокси `deploy/nginx/adrobot.iversdev.ru.conf` и unit-файл systemd `deploy/systemd/adrobot.service`. До развёртывания направьте DNS A-запись домена на публичный IP сервера и разрешите входящие подключения к портам 80 и 443.
 
-On the Ubuntu server:
+На сервере Ubuntu выполните:
 
 ```bash
 sudo apt update
@@ -95,21 +95,21 @@ sudo mkdir -p /etc/adrobot /var/lib/adrobot
 sudo chown adrobot:adrobot /var/lib/adrobot
 ```
 
-Create `/etc/adrobot/adrobot.env` with the Keitaro URL and API key, `ADMIN_USERNAME`, the Argon2 `ADMIN_PASSWORD_HASH`, and a persistent random `SESSION_SECRET_KEY`. Use:
+Создайте `/etc/adrobot/adrobot.env`, указав адрес Keitaro и ключ API, `ADMIN_USERNAME`, хэш Argon2 в `ADMIN_PASSWORD_HASH` и постоянный случайный `SESSION_SECRET_KEY`. Добавьте:
 
 ```text
 DATABASE_URL=sqlite:////var/lib/adrobot/adrobot.db
 SESSION_COOKIE_SECURE=true
 ```
 
-Generate the password hash with `/opt/adrobot/.venv/bin/python -m app.password_hash` from `/opt/adrobot`, and generate the session key with `python3 -c 'import secrets; print(secrets.token_urlsafe(48))'`. Store the env file securely:
+Сгенерируйте хэш пароля командой `/opt/adrobot/.venv/bin/python -m app.password_hash` из каталога `/opt/adrobot`, а ключ сессии — командой `python3 -c 'import secrets; print(secrets.token_urlsafe(48))'`. Защитите файл с настройками:
 
 ```bash
 sudo chown root:adrobot /etc/adrobot/adrobot.env
 sudo chmod 640 /etc/adrobot/adrobot.env
 ```
 
-Install and enable the provided service and Nginx site:
+Установите и включите systemd-сервис и сайт Nginx:
 
 ```bash
 sudo cp /opt/adrobot/deploy/systemd/adrobot.service /etc/systemd/system/adrobot.service
@@ -122,13 +122,13 @@ sudo certbot --nginx -d adrobot.iversdev.ru
 sudo systemctl restart adrobot
 ```
 
-The systemd service binds Uvicorn to localhost, runs Alembic migrations before startup, and writes SQLite data only under `/var/lib/adrobot`. Nginx proxies the site, rate-limits login attempts, and Certbot configures HTTPS. Check service logs with `sudo journalctl -u adrobot -f`. Port 8000 should not be exposed publicly.
+Сервис systemd запускает Uvicorn, привязанный к localhost, применяет миграции Alembic перед запуском и хранит SQLite-базу в `/var/lib/adrobot`. Nginx проксирует запросы, ограничивает частоту попыток входа, а Certbot настраивает HTTPS. Просмотр логов сервиса: `sudo journalctl -u adrobot -f`. Не открывайте порт 8000 для публичного доступа.
 
-## Keitaro API compatibility
+## Совместимость с Keitaro API
 
-The integration is contained in `app/keitaro/client.py`. Keitaro Admin API versions can differ in accepted stream and report payload shapes; if the API documentation in your instance specifies different fields or endpoint names, update this adapter and its payload tests. The application returns upstream failures as HTTP 502 responses rather than silently pretending an operation succeeded.
+Взаимодействие с API реализовано в `app/keitaro/client.py`. Версии Keitaro Admin API могут различаться по допустимым полям потоков и отчётов. Если документация вашего экземпляра указывает другие поля или маршруты, измените этот адаптер и соответствующие тесты. Ошибки Keitaro возвращаются как HTTP 502, а не скрываются под видом успешного выполнения.
 
-## Tests
+## Тесты
 
 ```powershell
 pytest
