@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Вход — Adrobot{% endblock %}
+{% block content %}
+<section class="card" style="max-width:440px;margin:48px auto">
+  <h1>Вход в Adrobot</h1>
+  <form id="login-form">
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <label for="username">Логин</label>
+    <input id="username" name="username" autocomplete="username" required autofocus>
+    <label for="password">Пароль</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <p><button class="primary" type="submit">Войти</button></p>
+    <div id="login-error" class="msg err" role="alert"></div>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const loginForm = document.getElementById('login-form');
+  const loginError = document.getElementById('login-error');
+  loginForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const values = new FormData(loginForm);
+    const button = loginForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    loginError.textContent = '';
+    try {
+      const result = await api('POST', '/login', {
+        username: values.get('username'),
+        password: values.get('password'),
+        next: values.get('next')
+      });
+      window.location.href = result.next;
+    } catch (error) {
+      loginError.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>
+{% endblock %}

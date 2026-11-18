@@ -37,7 +37,12 @@
   </style>
 </head>
 <body>
-  <header><a href="/">Adrobot</a></header>
+  <header class="toolbar">
+    <a href="/">Adrobot</a>
+    {% if request.session.get("username") %}
+    <button id="logout-button" type="button">Выйти</button>
+    {% endif %}
+  </header>
   <main>{% block content %}{% endblock %}</main>
   <script>
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -53,6 +58,17 @@
         throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail) || response.statusText);
       }
       return data;
+    }
+    const logoutButton = document.getElementById('logout-button');
+    if (logoutButton) {
+      logoutButton.addEventListener('click', async () => {
+        try {
+          await api('POST', '/logout');
+          window.location.href = '/login';
+        } catch (error) {
+          window.alert(error.message);
+        }
+      });
     }
   </script>
   {% block scripts %}{% endblock %}

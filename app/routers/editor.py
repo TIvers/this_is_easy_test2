@@ -3,11 +3,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.auth import require_login
 from app.deps import get_keitaro
 from app.keitaro.client import KeitaroClient
 from app.services import offers as offers_service
 
-router = APIRouter(prefix="/api/campaigns")
+router = APIRouter(prefix="/api/campaigns", dependencies=[Depends(require_login)])
 
 
 class OfferIn(BaseModel):

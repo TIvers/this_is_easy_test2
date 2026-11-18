@@ -4,13 +4,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.auth import require_login
 from app.db import get_db
 from app.deps import get_keitaro
 from app.keitaro.client import KeitaroClient
 from app.models import Campaign
 from app.services import campaigns as campaigns_service
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(require_login)])
 
 
 class CampaignIn(BaseModel):
