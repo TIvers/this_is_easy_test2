@@ -51,6 +51,12 @@ class KeitaroClient:
     def list_offers(self) -> list[dict]:
         return self._request("GET", "/offers") or []
 
+    def delete_offer(self, offer_id: int) -> None:
+        self._request("DELETE", f"/offers/{offer_id}")
+
+    def list_campaigns(self) -> list[dict]:
+        return self._request("GET", "/campaigns") or []
+
     def create_campaign(self, payload: dict) -> dict:
         return self._request("POST", "/campaigns", json=payload)
 
