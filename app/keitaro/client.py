@@ -63,6 +63,9 @@ class KeitaroClient:
     def get_campaign(self, campaign_id: int) -> dict:
         return self._request("GET", f"/campaigns/{campaign_id}")
 
+    def update_campaign(self, campaign_id: int, payload: dict) -> dict:
+        return self._request("PUT", f"/campaigns/{campaign_id}", json=payload)
+
     def create_stream(self, payload: dict) -> dict:
         return self._request("POST", "/streams", json=payload)
 

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.keitaro.client import KeitaroClient
-from app.models import DraftOffer, StreamDraft
+from app.models import CampaignNameDraft, DraftOffer, StreamDraft
 from app.services import shares
 
 
@@ -139,7 +139,19 @@ def _offer_data(
 
 
 def _draft_changed(draft: StreamDraft) -> bool:
-    return draft.is_new or draft.is_deleted or any(
+    return (
+        draft.is_new
+        or draft.is_deleted
+        or (
+            draft.original_name is not None
+            and draft.name != draft.original_name
+        )
+        or _offers_changed(draft)
+    )
+
+
+def _offers_changed(draft: StreamDraft) -> bool:
+    return any(
         offer.is_new or offer.is_deleted or offer.original_share != offer.share
         for offer in draft.offers
     )
@@ -166,6 +178,10 @@ def _stream_data(
         is_new = draft.is_new
         is_deleted = draft.is_deleted
         changed = _draft_changed(draft)
+        offers_changed = _offers_changed(draft)
+        name_changed = draft.is_new or (
+            draft.original_name is not None and draft.name != draft.original_name
+        )
         name = draft.name or name
         position = draft.position or position
         action_payload = draft.action_payload or action_payload
@@ -198,11 +214,15 @@ def _stream_data(
         is_new = False
         is_deleted = False
         changed = False
+        offers_changed = False
+        name_changed = False
     else:
         offers = []
         is_new = False
         is_deleted = False
         changed = False
+        offers_changed = False
+        name_changed = False
 
     return {
         "id": stream_id,
@@ -215,6 +235,8 @@ def _stream_data(
         "total": sum(offer["share"] for offer in offers if not offer["is_deleted"]),
         "drafted": draft is not None,
         "changed": changed,
+        "offers_changed": offers_changed,
+        "name_changed": name_changed,
         "is_new": is_new,
         "is_deleted": is_deleted,
         "is_base": stream_id == base_stream_id,
@@ -222,7 +244,11 @@ def _stream_data(
 
 
 def get_view(db: Session, client: KeitaroClient, campaign_id: int, interval: str = "today") -> dict:
-    campaign = client.get_campaign(campaign_id)
+    campaign = dict(client.get_campaign(campaign_id))
+    campaign_name_draft = db.get(CampaignNameDraft, campaign_id)
+    if campaign_name_draft is not None:
+        campaign["name"] = campaign_name_draft.name
+    campaign["name_changed"] = campaign_name_draft is not None
     remote_streams = _remote_streams(client, campaign_id)
     offer_names = _offers_map(client)
     stats = _stats_map(client, campaign_id, interval)
@@ -273,8 +299,9 @@ def get_view(db: Session, client: KeitaroClient, campaign_id: int, interval: str
         "campaign": campaign,
         "interval": interval,
         "streams": output,
-        "has_drafts": bool(drafts),
-        "has_changes": any(stream["changed"] for stream in output),
+        "has_drafts": bool(drafts) or campaign_name_draft is not None,
+        "has_changes": campaign_name_draft is not None
+        or any(stream["changed"] for stream in output),
         "all_offers": [
             {"id": offer_id, "name": name}
             for offer_id, name in sorted(offer_names.items())
@@ -312,6 +339,79 @@ def create_stream_draft(
     db.add(draft)
     db.commit()
     return draft
+
+
+def set_campaign_name(
+    db: Session, client: KeitaroClient, campaign_id: int, name: str
+) -> None:
+    name = name.strip()
+    if not name:
+        raise ValueError("Название кампании не может быть пустым")
+    if len(name) > 255:
+        raise ValueError("Название кампании не может быть длиннее 255 символов")
+    try:
+        campaign = client.get_campaign(campaign_id)
+        draft = db.get(CampaignNameDraft, campaign_id)
+        if draft is None:
+            original_name = str(campaign.get("name") or "")
+            if name != original_name:
+                db.add(
+                    CampaignNameDraft(
+                        campaign_id=campaign_id,
+                        original_name=original_name,
+                        name=name,
+                    )
+                )
+        elif name == draft.original_name:
+            db.delete(draft)
+        else:
+            draft.name = name
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+def set_stream_name(
+    db: Session,
+    client: KeitaroClient,
+    campaign_id: int,
+    stream_id: int,
+    name: str,
+) -> None:
+    name = name.strip()
+    if not name:
+        raise ValueError("Название потока не может быть пустым")
+    if len(name) > 255:
+        raise ValueError("Название потока не может быть длиннее 255 символов")
+    try:
+        base_stream_id = _base_stream_id(client, campaign_id)
+        if stream_id == base_stream_id:
+            raise ValueError("Название базового первого потока менять нельзя")
+
+        draft = db.get(StreamDraft, stream_id)
+        if draft is not None and draft.campaign_id != campaign_id:
+            raise ValueError(f"Поток {stream_id} не принадлежит кампании {campaign_id}")
+        if draft is None:
+            if stream_id < 0:
+                raise ValueError(f"Черновик потока {stream_id} не найден")
+            draft = _load_stream_draft(db, client, campaign_id, stream_id)
+        if draft.is_deleted:
+            raise ValueError("Сначала восстановите поток, чтобы изменить его название")
+
+        if not draft.is_new and draft.original_name is None:
+            remote = _find_remote_stream(client, campaign_id, stream_id)
+            draft.original_name = str(remote.get("name") or "")
+            if not draft.name:
+                draft.name = draft.original_name
+
+        draft.name = name
+        if not _draft_changed(draft):
+            db.delete(draft)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 def _base_stream_id(client: KeitaroClient, campaign_id: int) -> int | None:
@@ -475,16 +575,17 @@ def _push_stream_draft(
             client.create_stream(_stream_payload(draft))
         elif _draft_changed(draft):
             _find_remote_stream(client, campaign_id, stream_id)
-            shares.validate_for_push(_active_offers(draft))
-            client.update_stream(
-                stream_id,
-                {
-                    "offers": [
-                        {"offer_id": offer.offer_id, "share": offer.share, "state": "active"}
-                        for offer in sorted(_active_offers(draft), key=lambda item: item.position)
-                    ]
-                },
-            )
+            payload = {}
+            if draft.original_name is not None and draft.name != draft.original_name:
+                payload["name"] = draft.name
+            if _offers_changed(draft):
+                shares.validate_for_push(_active_offers(draft))
+                payload["offers"] = [
+                    {"offer_id": offer.offer_id, "share": offer.share, "state": "active"}
+                    for offer in sorted(_active_offers(draft), key=lambda item: item.position)
+                ]
+            client.update_stream(stream_id, payload)
+
         else:
             db.delete(draft)
             db.commit()
@@ -500,6 +601,22 @@ def push_draft(
     db: Session, client: KeitaroClient, campaign_id: int, stream_id: int
 ) -> None:
     _push_stream_draft(db, client, campaign_id, stream_id)
+
+
+def push_campaign_name_draft(
+    db: Session, client: KeitaroClient, campaign_id: int
+) -> bool:
+    draft = db.get(CampaignNameDraft, campaign_id)
+    if draft is None:
+        return False
+    try:
+        client.update_campaign(campaign_id, {"name": draft.name})
+        db.delete(draft)
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        raise
 
 
 def push_all_drafts(db: Session, client: KeitaroClient, campaign_id: int) -> int:
@@ -529,4 +646,7 @@ def cancel_all_drafts(db: Session, campaign_id: int) -> None:
     ).all()
     for draft in drafts:
         db.delete(draft)
+    campaign_draft = db.get(CampaignNameDraft, campaign_id)
+    if campaign_draft is not None:
+        db.delete(campaign_draft)
     db.commit()

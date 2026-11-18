@@ -22,6 +22,10 @@ class StreamIn(BaseModel):
     name: str | None = Field(default=None, max_length=255)
 
 
+class NameIn(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
 @router.get("/{campaign_id}/editor")
 def editor_view(
     campaign_id: int,
@@ -35,6 +39,17 @@ def editor_view(
     return offers_service.get_view(db, client, campaign_id, interval)
 
 
+@router.put("/{campaign_id}/name")
+def set_campaign_name(
+    campaign_id: int,
+    body: NameIn,
+    db: Session = Depends(get_db),
+    client: KeitaroClient = Depends(get_keitaro),
+):
+    offers_service.set_campaign_name(db, client, campaign_id, body.name)
+    return {"ok": True}
+
+
 @router.post("/{campaign_id}/streams")
 def create_stream(
     campaign_id: int,
@@ -44,6 +59,20 @@ def create_stream(
 ):
     draft = offers_service.create_stream_draft(db, client, campaign_id, body.name)
     return {"id": draft.stream_id, "name": draft.name, "position": draft.position}
+
+
+@router.put("/{campaign_id}/streams/{stream_id}/name")
+def set_stream_name(
+    campaign_id: int,
+    stream_id: int,
+    body: NameIn,
+    db: Session = Depends(get_db),
+    client: KeitaroClient = Depends(get_keitaro),
+):
+    offers_service.set_stream_name(
+        db, client, campaign_id, stream_id, body.name
+    )
+    return {"ok": True}
 
 
 @router.delete("/{campaign_id}/streams/{stream_id}")
@@ -139,7 +168,14 @@ def push_all_drafts(
     db: Session = Depends(get_db),
     client: KeitaroClient = Depends(get_keitaro),
 ):
-    return {"saved_streams": offers_service.push_all_drafts(db, client, campaign_id)}
+    saved_streams = offers_service.push_all_drafts(db, client, campaign_id)
+    saved_campaign_name = offers_service.push_campaign_name_draft(
+        db, client, campaign_id
+    )
+    return {
+        "saved_streams": saved_streams,
+        "saved_campaign_name": saved_campaign_name,
+    }
 
 
 @router.delete("/{campaign_id}/draft")

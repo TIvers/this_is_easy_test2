@@ -1,26 +1,26 @@
 # Adrobot
 
-Adrobot is a FastAPI + SQLAlchemy application for creating Keitaro campaigns and editing offers in existing campaign streams.
+Adrobot — приложение на FastAPI и SQLAlchemy для создания кампаний Keitaro и редактирования офферов в потоках существующих кампаний.
 
-## Features
+## Возможности
 
-- Creates a campaign with a country-filtered Google redirect stream and a fallback offer stream.
-- Loads domains, campaign groups, traffic sources, and offers from Keitaro.
-- Displays current names for saved campaigns from Keitaro and lets administrators delete campaigns from Keitaro.
-- Opens any existing campaign by its Keitaro ID.
-- Stages offer and stream changes locally; only the explicit save command writes them to Keitaro.
-- Keeps the first stream as the undeletable base stream and highlights pending changes in yellow.
-- Balances offer shares to 100% while respecting pinned shares and reserving at least 1% per unpinned offer.
-- Shows per-offer clicks, conversions, revenue, and CR for a selected reporting period.
+- Создаёт кампанию с потоком редиректа в Google для выбранной страны и резервным потоком с оффером.
+- Загружает из Keitaro домены, группы кампаний, источники трафика и офферы.
+- Показывает актуальные названия сохранённых кампаний и позволяет администраторам удалять кампании в Keitaro.
+- Открывает любую существующую кампанию по её ID в Keitaro.
+- Сохраняет изменения офферов, названия кампании и названий потоков (кроме первого) как локальные черновики. В Keitaro они отправляются только после явного подтверждения.
+- Запрещает удалять и переименовывать первый поток, подсвечивает ожидающие подтверждения изменения жёлтым.
+- Автоматически балансирует доли офферов до 100%, учитывая закреплённые доли и минимум 1% для каждого незакреплённого оффера.
+- Показывает клики, конверсии, доход и CR для каждого оффера за выбранный период.
 
-Deleting a campaign permanently removes it from Keitaro via the Admin API and clears its local campaign record and pending editor drafts. The operation requires explicit confirmation in the homepage campaign list.
+Удаление кампании безвозвратно удаляет её из Keitaro, а также очищает локальную запись и черновики редактора. Для операции требуется явное подтверждение в списке кампаний на главной странице.
 
-## Requirements
+## Требования
 
-- Python 3.11 (recommended; use a stable Python release)
-- A Keitaro instance and an Admin API key with access to campaigns, streams, offers, and reports.
+- Python 3.11 (рекомендуется; используйте стабильную версию Python).
+- Экземпляр Keitaro и ключ Admin API с доступом к кампаниям, потокам, офферам и отчётам.
 
-## Setup (Windows PowerShell)
+## Установка (Windows PowerShell)
 
 ```powershell
 py -3.11 -m venv .venv
@@ -29,38 +29,38 @@ python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Set `KEITARO_URL` to the Keitaro host (without `/admin_api/v1`) and add the Admin API key to `.env`. Never commit `.env` or paste a live key into source files. Optionally set the default domain, group, and source IDs; otherwise choose them in the campaign form.
+Укажите в `.env` адрес Keitaro в `KEITARO_URL` (без `/admin_api/v1`) и ключ Admin API. Никогда не добавляйте `.env` в репозиторий и не вставляйте действующий ключ в исходный код. При необходимости задайте ID домена, группы и источника по умолчанию; иначе выберите их в форме создания кампании.
 
-## Database migrations
+## Миграции базы данных
 
-Apply migrations before starting the application:
+Перед запуском приложения примените миграции:
 
 ```powershell
 alembic upgrade head
 ```
 
-To create a migration after changing SQLAlchemy models:
+Чтобы создать миграцию после изменения моделей SQLAlchemy:
 
 ```powershell
-alembic revision --autogenerate -m "describe the change"
+alembic revision --autogenerate -m "описание изменений"
 alembic upgrade head
 ```
 
-The default database is SQLite at `./adrobot.db`. Set `DATABASE_URL` to another SQLAlchemy URL to use a different database.
+По умолчанию используется SQLite-база `./adrobot.db`. Чтобы использовать другую базу данных, укажите соответствующий SQLAlchemy URL в `DATABASE_URL`.
 
-## Run
+## Запуск
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-Open <http://127.0.0.1:8000>. Interactive API documentation is available at <http://127.0.0.1:8000/docs>.
+Откройте <http://127.0.0.1:8000>. Интерактивная документация API доступна по адресу <http://127.0.0.1:8000/docs>.
 
-## Keitaro API compatibility
+## Совместимость с Keitaro API
 
-The integration is contained in `app/keitaro/client.py`. Keitaro Admin API versions can differ in accepted stream and report payload shapes; if the API documentation in your instance specifies different fields or endpoint names, update this adapter and its payload tests. The application returns upstream failures as HTTP 502 responses rather than silently pretending an operation succeeded.
+Взаимодействие с API реализовано в `app/keitaro/client.py`. Версии Keitaro Admin API могут различаться по допустимым полям потоков и отчётов. Если документация вашего экземпляра указывает другие поля или маршруты, измените этот адаптер и соответствующие тесты. Ошибки Keitaro возвращаются как HTTP 502, а не скрываются под видом успешного выполнения.
 
-## Tests
+## Тесты
 
 ```powershell
 pytest

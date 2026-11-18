@@ -28,6 +28,16 @@ class Campaign(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class CampaignNameDraft(Base):
+    """Pending name change for any campaign managed by Keitaro."""
+
+    __tablename__ = "campaign_name_drafts"
+
+    campaign_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)
+    original_name: Mapped[str] = mapped_column(String(255))
+    name: Mapped[str] = mapped_column(String(255))
+
+
 class StreamDraft(Base):
     """Local changes to a Keitaro stream, including streams not yet created remotely."""
 
@@ -38,6 +48,7 @@ class StreamDraft(Base):
     is_new: Mapped[bool] = mapped_column(default=False, server_default=false())
     is_deleted: Mapped[bool] = mapped_column(default=False, server_default=false())
     name: Mapped[str] = mapped_column(String(255), default="", server_default="")
+    original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     schema: Mapped[str] = mapped_column(String(40), default="landings", server_default="landings")
     action_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     action_payload: Mapped[str | None] = mapped_column(String(2000), nullable=True)
