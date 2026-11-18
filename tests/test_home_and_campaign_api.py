@@ -8,27 +8,28 @@ from app.config import settings
 from app.db import get_db
 from app.deps import get_keitaro, get_keitaro_if_configured
 from app.main import app
-from app.models import Base, Campaign
+from app.models import Base, Campaign, StreamDraft
 
 
 class FakeKeitaro:
     def __init__(self):
-        self.deleted_offers = []
+        self.deleted_campaigns = []
 
     def list_campaigns(self):
         return [{"id": 123, "name": "Renamed in Keitaro"}]
 
-    def delete_offer(self, offer_id):
-        self.deleted_offers.append(offer_id)
+    def delete_campaign(self, campaign_id):
+        self.deleted_campaigns.append(campaign_id)
 
 
-def test_home_uses_live_campaign_name_and_offer_delete_calls_api(monkeypatch):
-    monkeypatch.setattr(settings, "admin_username", "admin")
-    monkeypatch.setattr(
-        settings,
-        "admin_password_hash",
-        PasswordHasher().hash("test-password"),
-    )
+def test_home_uses_live_campaign_name_and_campaign_delete_calls_api(monkeypatch):
+    if hasattr(settings, "admin_username"):
+        monkeypatch.setattr(settings, "admin_username", "admin")
+        monkeypatch.setattr(
+            settings,
+            "admin_password_hash",
+            PasswordHasher().hash("test-password"),
+        )
 
     engine = create_engine(
         "sqlite://",
@@ -48,7 +49,9 @@ def test_home_uses_live_campaign_name_and_offer_delete_calls_api(monkeypatch):
             source_id=1,
         )
     )
+    session.add(StreamDraft(stream_id=456, campaign_id=123))
     session.commit()
+    campaign_pk = session.query(Campaign.id).filter_by(keitaro_id=123).scalar()
 
     fake = FakeKeitaro()
     previous_overrides = app.dependency_overrides.copy()
@@ -61,21 +64,25 @@ def test_home_uses_live_campaign_name_and_offer_delete_calls_api(monkeypatch):
     app.dependency_overrides[get_keitaro_if_configured] = lambda: fake
     try:
         client = TestClient(app)
-        login = client.post(
-            "/login",
-            json={"username": "admin", "password": "test-password"},
-        )
-        assert login.status_code == 200
+        if hasattr(settings, "admin_username"):
+            login = client.post(
+                "/login",
+                json={"username": "admin", "password": "test-password"},
+            )
+            assert login.status_code == 200
 
         home = client.get("/")
         assert home.status_code == 200
         assert "Renamed in Keitaro" in home.text
         assert "Old saved name" not in home.text
+        assert 'data-delete-campaign="123"' in home.text
 
-        response = client.delete("/api/offers/34")
+        response = client.delete("/api/campaigns/123")
         assert response.status_code == 200
         assert response.json() == {"ok": True}
-        assert fake.deleted_offers == [34]
+        assert fake.deleted_campaigns == [123]
+        assert session.get(Campaign, campaign_pk) is None
+        assert session.get(StreamDraft, 456) is None
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(previous_overrides)
