@@ -84,6 +84,8 @@
     a { color:var(--accent); } .total-ok { color:var(--ok); } .total-bad { color:var(--danger); }
     .table-wrap { overflow-x:auto; }
     .stream-footer { display:flex; justify-content:flex-end; margin-top:16px; }
+    .stream-actions-row { display:grid; grid-template-columns:minmax(190px,1fr) auto 1fr; gap:14px; align-items:end; }
+    .stream-actions-row .stream-delete { justify-self:end; }
     .pending-change { background:var(--pending-bg) !important; }
     .pending-stream { border-color:var(--pending-border); }
     .removed-offer td:not(:last-child) { color:var(--muted); text-decoration:line-through; }
@@ -161,6 +163,8 @@
       .ambient-run { width:180px; }
       .ambient-run-left { left:calc(var(--ambient-left) - 180px); }
       .ambient-run-right { right:calc(var(--ambient-right) - 180px); }
+      .stream-actions-row { grid-template-columns:minmax(0,1fr) auto; }
+      .stream-actions-row .stream-delete { grid-column:1 / -1; }
     }
     @media(max-width:600px) { main { margin:16px auto; padding:0 10px; } .card { padding:15px; } }
   </style>

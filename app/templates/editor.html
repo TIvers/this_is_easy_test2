@@ -135,16 +135,16 @@
           Сумма долей: ${stream.total}%${validTotal ? '' : ' (должно быть 100%)'}
         </p>
         <form class="add-form" data-stream="${streamId}">
-          <div class="row" style="align-items:end">
+          <div class="stream-actions-row">
             <div><label for="offer-${streamId}">Добавить оффер</label>
               <select id="offer-${streamId}" name="offer_id" required>
                 <option value="">Выберите оффер…</option>${options}
               </select>
             </div>
             <div><button type="submit" ${options ? '' : 'disabled'}>Добавить оффер</button></div>
+            ${stream.is_base ? '' : `<button type="button" class="danger stream-delete" onclick="deleteStream(${streamId})">Удалить поток</button>`}
           </div>
         </form>
-        ${stream.is_base ? '' : `<div class="stream-footer"><button type="button" class="danger" onclick="deleteStream(${streamId})">Удалить поток</button></div>`}
       </section>`;
     }).join('');
 
