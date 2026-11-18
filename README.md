@@ -7,7 +7,9 @@ Adrobot is a FastAPI + SQLAlchemy application for creating Keitaro campaigns and
 - Creates a campaign with a country-filtered Google redirect stream and a fallback offer stream.
 - Loads domains, campaign groups, traffic sources, and offers from Keitaro.
 - Opens any existing campaign by its Keitaro ID.
-- Stages offer changes locally, balances offer shares to 100%, and pushes or cancels drafts.
+- Stages offer and stream changes locally; only the explicit save command writes them to Keitaro.
+- Keeps the first stream as the undeletable base stream and highlights pending changes in yellow.
+- Balances offer shares to 100% while respecting pinned shares and reserving at least 1% per unpinned offer.
 - Shows per-offer clicks, conversions, revenue, and CR for a selected reporting period.
 
 ## Requirements

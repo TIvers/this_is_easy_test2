@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, false
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -29,12 +29,19 @@ class Campaign(Base):
 
 
 class StreamDraft(Base):
-    """Локальный черновик офферов потока. Есть запись -> есть несохранённые изменения."""
+    """Local changes to a Keitaro stream, including streams not yet created remotely."""
 
     __tablename__ = "stream_drafts"
 
     stream_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)
     campaign_id: Mapped[int] = mapped_column(index=True)
+    is_new: Mapped[bool] = mapped_column(default=False, server_default=false())
+    is_deleted: Mapped[bool] = mapped_column(default=False, server_default=false())
+    name: Mapped[str] = mapped_column(String(255), default="", server_default="")
+    schema: Mapped[str] = mapped_column(String(40), default="landings", server_default="landings")
+    action_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    action_payload: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    position: Mapped[int] = mapped_column(default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     offers: Mapped[list["DraftOffer"]] = relationship(
@@ -53,6 +60,9 @@ class DraftOffer(Base):
     offer_id: Mapped[int]
     name: Mapped[str] = mapped_column(String(500), default="")
     share: Mapped[int] = mapped_column(default=0)
+    original_share: Mapped[int | None] = mapped_column(nullable=True)
+    is_new: Mapped[bool] = mapped_column(default=False, server_default=false())
+    is_deleted: Mapped[bool] = mapped_column(default=False, server_default=false())
     pinned: Mapped[bool] = mapped_column(default=False)
     position: Mapped[int] = mapped_column(default=0)
 

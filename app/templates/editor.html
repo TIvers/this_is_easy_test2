@@ -12,6 +12,19 @@
     </select>
   </div>
 </section>
+<section class="card toolbar">
+  <div class="row" style="flex:1;align-items:end">
+    <div><label for="new-stream-name">Название нового потока</label><input id="new-stream-name" maxlength="255" placeholder="Например, Offer 2"></div>
+    <div><button id="add-stream" type="button">Добавить поток</button></div>
+  </div>
+  <div class="toolbar" style="justify-content:flex-start">
+    <button id="save-all" class="primary" type="button">Сохранить изменения в Keitaro</button>
+    <button id="cancel-all" type="button">Отменить все изменения</button>
+  </div>
+  <p id="draft-note" class="change-banner" style="display:none;width:100%;margin:0">
+    Жёлтым отмечены изменения, которые пока сохранены только здесь и ещё не отправлены в Keitaro.
+  </p>
+</section>
 <div id="error" class="msg err" role="alert"></div>
 <div id="streams"></div>
 {% endblock %}
@@ -22,6 +35,9 @@
   const box = document.getElementById('streams');
   const errorBox = document.getElementById('error');
   const intervalSelect = document.getElementById('interval');
+  const saveButton = document.getElementById('save-all');
+  const cancelButton = document.getElementById('cancel-all');
+  const draftNote = document.getElementById('draft-note');
   let view = null;
   const money = value => Number(value || 0).toFixed(2);
   const percent = value => Number(value || 0).toFixed(2) + '%';
@@ -32,6 +48,12 @@
       view = await api('GET', `/api/campaigns/${KID}/editor?interval=${intervalSelect.value}`);
       errorBox.textContent = '';
       document.getElementById('title').textContent = `${view.campaign.name || 'Кампания'} (#${KID})`;
+      saveButton.disabled = !view.has_changes || view.streams.some(stream =>
+        stream.changed && !stream.is_deleted && stream.editable &&
+        (stream.total !== 100 || stream.offers.every(offer => offer.is_deleted))
+      );
+      cancelButton.disabled = !view.has_drafts;
+      draftNote.style.display = view.has_changes ? 'block' : 'none';
       render();
     } catch (error) {
       errorBox.textContent = error.message;
@@ -50,47 +72,74 @@
 
   function render() {
     box.innerHTML = view.streams.map(stream => {
-      const heading = `<h2>Поток #${esc(stream.position)}: ${esc(stream.name)} <span class="muted">(id ${stream.id})</span></h2>`;
-      if (!stream.editable) {
-        return `<section class="card">${heading}<p class="muted">Редирект${stream.action_payload ? ' → ' + esc(stream.action_payload) : ''}. Офферов нет.</p></section>`;
+      const cardClass = stream.changed ? 'card pending-stream' : 'card';
+      const streamId = stream.id;
+      const streamLabel = stream.is_new ? 'новый, ещё не отправлен' : `id ${streamId}`;
+      const heading = `<h2>Поток #${esc(stream.position)}: ${esc(stream.name)}
+        <span class="muted">(${streamLabel})</span>
+        ${stream.is_base ? '<span class="muted">· базовый</span>' : ''}</h2>`;
+
+      if (stream.is_deleted) {
+        return `<section class="${cardClass}">
+          ${heading}
+          <p>Поток отмечен к удалению. Он останется в Keitaro до нажатия «Сохранить изменения».</p>
+          <button onclick="restoreStream(${streamId})">Восстановить поток</button>
+        </section>`;
       }
 
-      const rows = stream.offers.map(offer => `
-        <tr>
-          <td>${esc(offer.name)} <span class="muted">#${offer.offer_id}</span></td>
-          <td style="white-space:nowrap">
-            <input aria-label="Доля оффера ${offer.offer_id}" type="number" min="0" max="100" value="${offer.share}" style="width:76px"
-              onchange="setShare(${stream.id}, ${offer.offer_id}, this.value)"> %
-            ${offer.pinned ? `<button title="Открепить долю" aria-label="Открепить долю" onclick="unpin(${stream.id}, ${offer.offer_id})">📌</button>` : ''}
-          </td>
+      if (!stream.editable) {
+        return `<section class="${cardClass}">
+          ${heading}
+          <p class="muted">Редирект${stream.action_payload ? ' → ' + esc(stream.action_payload) : ''}.</p>
+          ${stream.is_base ? '' : `<button class="danger" onclick="deleteStream(${streamId})">Удалить поток</button>`}
+        </section>`;
+      }
+
+      const rows = stream.offers.map(offer => {
+        const rowClass = offer.changed ? ` class="pending-change${offer.is_deleted ? ' removed-offer' : ''}"` : '';
+        const offerControls = offer.is_deleted
+          ? `<span class="muted">Отмечен к удалению</span>
+             <button onclick="addOffer(${streamId}, ${offer.offer_id})">Восстановить</button>`
+          : `<input aria-label="Доля оффера ${offer.offer_id}" type="number" min="0" max="100"
+               value="${offer.share}" style="width:76px"
+               onchange="setShare(${streamId}, ${offer.offer_id}, this.value)"> %
+             ${offer.pinned ? `<button title="Открепить долю" aria-label="Открепить долю"
+               onclick="unpin(${streamId}, ${offer.offer_id})">📌</button>` : ''}
+             <button class="danger" onclick="removeOffer(${streamId}, ${offer.offer_id})">Удалить</button>`;
+        return `<tr${rowClass}>
+          <td>${esc(offer.name)} <span class="muted">#${offer.offer_id}</span>
+            ${offer.is_new ? '<span class="muted">(новый)</span>' : ''}</td>
+          <td style="white-space:nowrap">${offerControls}</td>
           <td class="num">${esc(offer.stats.clicks)}</td>
           <td class="num">${esc(offer.stats.conversions)}</td>
           <td class="num">${money(offer.stats.revenue)}</td>
           <td class="num">${percent(offer.stats.cr)}</td>
-          <td><button class="danger" onclick="removeOffer(${stream.id}, ${offer.offer_id})">Удалить</button></td>
-        </tr>`).join('');
-      const existing = new Set(stream.offers.map(offer => offer.offer_id));
-      const options = view.all_offers.filter(offer => !existing.has(offer.id))
+        </tr>`;
+      }).join('');
+      const activeIds = new Set(stream.offers.filter(offer => !offer.is_deleted).map(offer => offer.offer_id));
+      const options = view.all_offers.filter(offer => !activeIds.has(offer.id))
         .map(offer => `<option value="${offer.id}">${esc(offer.name)} (#${offer.id})</option>`).join('');
-      const balanced = stream.total === 100;
-      const draftButtons = stream.drafted ? `
-        <button class="primary" ${!balanced ? 'disabled' : ''} onclick="push(${stream.id})">Сохранить в Keitaro</button>
-        <button onclick="cancelDraft(${stream.id})">Отменить изменения</button>` : '';
+      const validTotal = stream.total === 100;
 
-      return `<section class="card">
+      return `<section class="${cardClass}">
         ${heading}
         <div class="table-wrap"><table>
-          <thead><tr><th>Оффер</th><th>Доля</th><th class="num">Клики</th><th class="num">Конверсии</th><th class="num">Доход</th><th class="num">CR</th><th></th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="7" class="muted">Добавьте хотя бы один оффер</td></tr>'}</tbody>
+          <thead><tr><th>Оффер</th><th>Доля / действия</th><th class="num">Клики</th>
+            <th class="num">Конверсии</th><th class="num">Доход</th><th class="num">CR</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="6" class="muted">Добавьте хотя бы один оффер</td></tr>'}</tbody>
         </table></div>
-        <p class="${balanced ? 'total-ok' : 'total-bad'}">Сумма долей: ${stream.total}%${balanced ? '' : ' (должно быть 100%)'}</p>
-        <form class="add-form" data-stream="${stream.id}">
+        <p class="${validTotal ? 'total-ok' : 'total-bad'}">
+          Сумма долей: ${stream.total}%${validTotal ? '' : ' (должно быть 100%)'}
+        </p>
+        <form class="add-form" data-stream="${streamId}">
           <div class="row" style="align-items:end">
-            <div><label for="offer-${stream.id}">Добавить оффер</label><select id="offer-${stream.id}" name="offer_id" required>
-              <option value="">Выберите оффер…</option>${options}
-            </select></div>
-            <div><button type="submit" ${options ? '' : 'disabled'}>Добавить</button></div>
-            <div class="toolbar" style="justify-content:flex-start">${draftButtons}</div>
+            <div><label for="offer-${streamId}">Добавить оффер</label>
+              <select id="offer-${streamId}" name="offer_id" required>
+                <option value="">Выберите оффер…</option>${options}
+              </select>
+            </div>
+            <div><button type="submit" ${options ? '' : 'disabled'}>Добавить оффер</button></div>
+            ${stream.is_base ? '' : `<div><button type="button" class="danger" onclick="deleteStream(${streamId})">Удалить поток</button></div>`}
           </div>
         </form>
       </section>`;
@@ -100,10 +149,21 @@
       event.preventDefault();
       const streamId = Number(form.dataset.stream);
       const offerId = Number(new FormData(form).get('offer_id'));
-      act(() => api('POST', route(streamId, '/offers'), {offer_id: offerId}));
+      addOffer(streamId, offerId);
     }));
   }
 
+  document.getElementById('add-stream').addEventListener('click', () => {
+    const name = document.getElementById('new-stream-name').value.trim() || null;
+    act(() => api('POST', `/api/campaigns/${KID}/streams`, {name}));
+    document.getElementById('new-stream-name').value = '';
+  });
+  saveButton.addEventListener('click', () => act(() => api('POST', `/api/campaigns/${KID}/push`)));
+  cancelButton.addEventListener('click', () => act(() => api('DELETE', `/api/campaigns/${KID}/draft`)));
+
+  function addOffer(streamId, offerId) {
+    act(() => api('POST', route(streamId, '/offers'), {offer_id: offerId}));
+  }
   function removeOffer(streamId, offerId) {
     act(() => api('DELETE', route(streamId, `/offers/${offerId}`)));
   }
@@ -113,11 +173,11 @@
   function unpin(streamId, offerId) {
     act(() => api('POST', route(streamId, `/offers/${offerId}/unpin`)));
   }
-  function push(streamId) {
-    act(() => api('POST', route(streamId, '/push')));
+  function deleteStream(streamId) {
+    act(() => api('DELETE', route(streamId)));
   }
-  function cancelDraft(streamId) {
-    act(() => api('DELETE', route(streamId, '/draft')));
+  function restoreStream(streamId) {
+    act(() => api('POST', route(streamId, '/restore')));
   }
 
   intervalSelect.addEventListener('change', load);

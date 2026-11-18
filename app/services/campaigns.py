@@ -1,5 +1,6 @@
 import logging
 import re
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -36,6 +37,7 @@ def build_offer_stream(campaign_id: int, offer_id: int) -> dict:
         "position": 2,
         "weight": 100,
         "schema": "landings",
+        "action_type": "http",
         "collect_clicks": True,
         "filter_or": False,
         "filters": [],
@@ -72,9 +74,12 @@ def create_campaign(
     if offer_id not in {int(offer["id"]) for offer in client.list_offers()}:
         raise ValueError(f"Оффер {offer_id} не найден в Keitaro")
 
+    alias_base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "campaign"
+    alias = f"{alias_base[:40]}-{uuid4().hex}"
     created = client.create_campaign(
         {
             "name": name,
+            "alias": alias,
             "type": "position",
             "state": "active",
             "domain_id": domain_id,

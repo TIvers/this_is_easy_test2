@@ -72,6 +72,9 @@ class KeitaroClient:
     def update_stream(self, stream_id: int, payload: dict) -> dict:
         return self._request("PUT", f"/streams/{stream_id}", json=payload)
 
+    def delete_stream(self, stream_id: int) -> None:
+        self._request("DELETE", f"/streams/{stream_id}")
+
     def report_by_stream_offer(self, campaign_id: int, interval: str) -> list[dict]:
         report = self._request(
             "POST",

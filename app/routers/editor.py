@@ -18,6 +18,10 @@ class ShareIn(BaseModel):
     share: int = Field(ge=0, le=100)
 
 
+class StreamIn(BaseModel):
+    name: str | None = Field(default=None, max_length=255)
+
+
 @router.get("/{campaign_id}/editor")
 def editor_view(
     campaign_id: int,
@@ -29,6 +33,38 @@ def editor_view(
     client: KeitaroClient = Depends(get_keitaro),
 ):
     return offers_service.get_view(db, client, campaign_id, interval)
+
+
+@router.post("/{campaign_id}/streams")
+def create_stream(
+    campaign_id: int,
+    body: StreamIn,
+    db: Session = Depends(get_db),
+    client: KeitaroClient = Depends(get_keitaro),
+):
+    draft = offers_service.create_stream_draft(db, client, campaign_id, body.name)
+    return {"id": draft.stream_id, "name": draft.name, "position": draft.position}
+
+
+@router.delete("/{campaign_id}/streams/{stream_id}")
+def delete_stream(
+    campaign_id: int,
+    stream_id: int,
+    db: Session = Depends(get_db),
+    client: KeitaroClient = Depends(get_keitaro),
+):
+    offers_service.delete_stream_draft(db, client, campaign_id, stream_id)
+    return {"ok": True}
+
+
+@router.post("/{campaign_id}/streams/{stream_id}/restore")
+def restore_stream(
+    campaign_id: int,
+    stream_id: int,
+    db: Session = Depends(get_db),
+):
+    offers_service.restore_stream_draft(db, campaign_id, stream_id)
+    return {"ok": True}
 
 
 @router.post("/{campaign_id}/streams/{stream_id}/offers")
@@ -94,4 +130,19 @@ def push_draft(
 @router.delete("/{campaign_id}/streams/{stream_id}/draft")
 def cancel_draft(campaign_id: int, stream_id: int, db: Session = Depends(get_db)):
     offers_service.cancel_draft(db, campaign_id, stream_id)
+    return {"ok": True}
+
+
+@router.post("/{campaign_id}/push")
+def push_all_drafts(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    client: KeitaroClient = Depends(get_keitaro),
+):
+    return {"saved_streams": offers_service.push_all_drafts(db, client, campaign_id)}
+
+
+@router.delete("/{campaign_id}/draft")
+def cancel_all_drafts(campaign_id: int, db: Session = Depends(get_db)):
+    offers_service.cancel_all_drafts(db, campaign_id)
     return {"ok": True}

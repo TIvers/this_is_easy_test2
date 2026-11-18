@@ -80,6 +80,28 @@ def test_pinned_over_100_is_rejected_and_state_unchanged():
     assert values(items) == before
 
 
+def test_unpinned_offers_keep_at_least_one_percent_each():
+    items = make(1)
+    shares.set_share(items, 1, 99)
+    shares.add_item(items, Item(2))
+    before = values(items)
+
+    with pytest.raises(ShareError, match="минимум"):
+        shares.add_item(items, Item(3))
+
+    assert values(items) == before
+    assert [item.offer_id for item in items] == [1, 2]
+
+
+def test_setting_pinned_share_cannot_leave_zero_for_free_offers():
+    items = make(1, 2, 3)
+
+    with pytest.raises(ShareError, match="минимум"):
+        shares.set_share(items, 1, 99)
+
+    assert values(items) == [34, 33, 33]
+
+
 def test_all_pinned_and_not_100_blocks_push():
     items = make(1, 2)
     shares.set_share(items, 1, 30)

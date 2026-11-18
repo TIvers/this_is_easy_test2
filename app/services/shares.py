@@ -24,7 +24,13 @@ def rebalance(items: Iterable[ShareItem]) -> None:
     free = [item for item in items if not item.pinned]
     if not free:
         return
-    base, extra = divmod(TOTAL - pinned_sum, len(free))
+    available = TOTAL - pinned_sum
+    if available < len(free):
+        raise ShareError(
+            f"После закреплённых долей остаётся {available}%, "
+            f"но незакреплённым офферам нужно минимум {len(free)}%"
+        )
+    base, extra = divmod(available, len(free))
     for index, item in enumerate(free):
         item.share = base + (1 if index < extra else 0)
 
@@ -43,16 +49,26 @@ def total(items: Iterable[ShareItem]) -> int:
 def add_item(items: list[ShareItem], item: ShareItem) -> None:
     if any(existing.offer_id == item.offer_id for existing in items):
         raise ShareError("Этот оффер уже есть в потоке")
+    previous_share, previous_pinned = item.share, item.pinned
     item.pinned = False
     items.append(item)
-    rebalance(items)
+    try:
+        rebalance(items)
+    except Exception:
+        items.pop()
+        item.share, item.pinned = previous_share, previous_pinned
+        raise
 
 
 def remove_item(items: list[ShareItem], offer_id: int) -> ShareItem:
     for index, item in enumerate(items):
         if item.offer_id == offer_id:
             del items[index]
-            rebalance(items)
+            try:
+                rebalance(items)
+            except Exception:
+                items.insert(index, item)
+                raise
             return item
     raise ShareError("Оффера нет в потоке")
 
@@ -66,6 +82,11 @@ def set_share(items: list[ShareItem], offer_id: int, share: int) -> None:
     others_pinned = sum(item.share for item in items if item.pinned and item is not target)
     if others_pinned + share > TOTAL:
         raise ShareError("Сумма закреплённых долей не может превышать 100%")
+    free_count = sum(not item.pinned for item in items if item is not target)
+    if free_count and TOTAL - others_pinned - share < free_count:
+        raise ShareError(
+            f"Оставшейся доли не хватит минимум по 1% для {free_count} незакреплённых офферов"
+        )
     target.share = share
     target.pinned = True
     rebalance(items)
@@ -75,6 +96,12 @@ def unpin(items: list[ShareItem], offer_id: int) -> None:
     target = next((item for item in items if item.offer_id == offer_id), None)
     if target is None:
         raise ShareError("Оффера нет в потоке")
+    pinned_sum = sum(item.share for item in items if item.pinned and item is not target)
+    free_count = sum(not item.pinned for item in items) + (1 if target.pinned else 0)
+    if TOTAL - pinned_sum < free_count:
+        raise ShareError(
+            f"Оставшейся доли не хватит минимум по 1% для {free_count} незакреплённых офферов"
+        )
     target.pinned = False
     rebalance(items)
 
