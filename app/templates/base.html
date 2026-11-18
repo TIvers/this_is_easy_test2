@@ -11,9 +11,15 @@
       --text:#1d2735; --muted:#697586; --accent:#315de8; --accent-foreground:#fff; --danger:#bf3434; --ok:#1d8050;
       --bg-glow-a:rgba(49,93,232,.07); --bg-glow-b:rgba(41,137,123,.06);
       --hover-line:#aab5c5; --shadow:#1e293b08; --pending-bg:#fff3bf;
-      --pending-border:#d5a500; --change-line:#e6c75a; --ambient-text:#52678a;
-      --ambient-line:#7084a344; --ambient-edge:#7084a3; --ambient-panel:#f7f9fc80;
-      --ambient-grid:#7285a322; --ambient-chart:#7184a2; --ambient-trace:#607da9;
+      --pending-border:#d5a500; --change-line:#e6c75a; --ambient-text:#455d80;
+      --ambient-line:#60789d66; --ambient-edge:#60789d; --ambient-panel:#f7f9fccc;
+      --ambient-grid:#60789d33; --ambient-chart:#60789d; --ambient-trace:#526f9f;
+      --ambient-opacity:.23;
+      --ambient-left:3%; --ambient-right:3%; --ambient-left-top:-10vh; --ambient-right-top:-10vh;
+      --ambient-left-duration:100s; --ambient-right-duration:125s;
+      --ambient-left-direction:normal; --ambient-right-direction:reverse;
+      --ambient-chart-left:8%; --ambient-chart-width:84%; --ambient-chart-top:auto;
+      --ambient-chart-bottom:3%; --ambient-chart-height:30vh; --ambient-chart-transform:none;
     }
     :root[data-theme="dark"] {
       color-scheme:dark;
@@ -24,6 +30,35 @@
       --pending-border:#b89435; --change-line:#8b722d; --ambient-text:#a2b3d0;
       --ambient-line:#8fa4c244; --ambient-edge:#8fa4c2; --ambient-panel:#111c2c88;
       --ambient-grid:#a2b3d022; --ambient-chart:#9aafd2; --ambient-trace:#91a9d2;
+      --ambient-opacity:.14;
+    }
+    :root[data-ambient-template="1"] {
+      --ambient-left:12%; --ambient-right:8%; --ambient-left-top:-25vh; --ambient-right-top:15vh;
+      --ambient-left-duration:86s; --ambient-right-duration:120s;
+      --ambient-left-direction:reverse; --ambient-right-direction:normal;
+      --ambient-chart-left:6%; --ambient-chart-width:84%; --ambient-chart-top:14%;
+      --ambient-chart-bottom:auto; --ambient-chart-height:25vh; --ambient-chart-transform:rotate(4deg);
+    }
+    :root[data-ambient-template="2"] {
+      --ambient-left:6%; --ambient-right:14%; --ambient-left-top:-40vh; --ambient-right-top:-8vh;
+      --ambient-left-duration:130s; --ambient-right-duration:96s;
+      --ambient-left-direction:normal; --ambient-right-direction:reverse;
+      --ambient-chart-left:8%; --ambient-chart-width:84%; --ambient-chart-top:auto;
+      --ambient-chart-bottom:13%; --ambient-chart-height:22vh; --ambient-chart-transform:scaleY(-1);
+    }
+    :root[data-ambient-template="3"] {
+      --ambient-left:18%; --ambient-right:4%; --ambient-left-top:-5vh; --ambient-right-top:25vh;
+      --ambient-left-duration:112s; --ambient-right-duration:78s;
+      --ambient-left-direction:reverse; --ambient-right-direction:normal;
+      --ambient-chart-left:8%; --ambient-chart-width:84%; --ambient-chart-top:35%;
+      --ambient-chart-bottom:auto; --ambient-chart-height:28vh; --ambient-chart-transform:rotate(-5deg);
+    }
+    :root[data-ambient-template="4"] {
+      --ambient-left:1%; --ambient-right:18%; --ambient-left-top:-32vh; --ambient-right-top:-18vh;
+      --ambient-left-duration:145s; --ambient-right-duration:108s;
+      --ambient-left-direction:normal; --ambient-right-direction:normal;
+      --ambient-chart-left:8%; --ambient-chart-width:84%; --ambient-chart-top:auto;
+      --ambient-chart-bottom:0%; --ambient-chart-height:34vh; --ambient-chart-transform:scaleX(-1);
     }
     * { box-sizing:border-box; }
     body { margin:0; font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; background:radial-gradient(ellipse at 10% 0%,var(--bg-glow-a),transparent 30rem),radial-gradient(ellipse at 92% 18%,var(--bg-glow-b),transparent 32rem),var(--bg); background-attachment:fixed; color:var(--text); }
@@ -36,7 +71,7 @@
     input,select { width:100%; min-height:38px; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--control-bg); color:var(--text); font:inherit; }
     .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; }
     button { padding:8px 13px; border:1px solid var(--line); border-radius:6px; background:var(--control-bg); color:var(--text); font:inherit; cursor:pointer; }
-    button:hover { border-color:var(--hover-line); } button:disabled { opacity:.55; cursor:wait; }
+    button:hover { border-color:var(--hover-line); } button:disabled { opacity:.55; cursor:not-allowed; }
     button.primary { color:var(--accent-foreground); border-color:var(--accent); background:var(--accent); }
     button.danger { color:var(--danger); }
     table { width:100%; border-collapse:collapse; }
@@ -68,17 +103,41 @@
       transition:none !important;
       scroll-behavior:auto !important;
     }
-    .ambient-data { position:fixed; z-index:0; inset:0; overflow:hidden; opacity:.14; pointer-events:none; user-select:none; }
+    .ambient-data { position:fixed; z-index:0; inset:0; overflow:hidden; opacity:var(--ambient-opacity); pointer-events:none; user-select:none; }
     .ambient-grid { position:absolute; inset:0; opacity:.5; background-image:linear-gradient(var(--ambient-grid) 1px,transparent 1px),linear-gradient(90deg,var(--ambient-grid) 1px,transparent 1px); background-size:56px 56px; mask-image:radial-gradient(ellipse at center,#000 20%,transparent 90%); }
-    .ambient-chart { position:absolute; left:12%; bottom:3%; width:76%; height:30vh; opacity:.48; }
+    .ambient-chart { position:absolute; left:var(--ambient-chart-left); top:var(--ambient-chart-top); bottom:var(--ambient-chart-bottom); width:var(--ambient-chart-width); height:var(--ambient-chart-height); opacity:.48; transform:var(--ambient-chart-transform); animation:ambient-wave-float 17s ease-in-out infinite alternate; }
     .ambient-chart-grid { fill:none; stroke:var(--ambient-chart); stroke-width:1; }
-    .ambient-chart-trace { fill:none; stroke:var(--ambient-trace); stroke-width:2; }
+    .ambient-wave { display:none; fill:none; stroke:var(--ambient-trace); stroke-width:2; stroke-dasharray:12 18; animation:ambient-wave-flow 8s linear infinite,ambient-wave-glow 4s ease-in-out infinite alternate; }
+    :root[data-ambient-template="0"] .ambient-wave-0,
+    :root[data-ambient-template="1"] .ambient-wave-1,
+    :root[data-ambient-template="2"] .ambient-wave-2,
+    :root[data-ambient-template="3"] .ambient-wave-3,
+    :root[data-ambient-template="4"] .ambient-wave-4 { display:block; }
     .ambient-chart-dot { fill:var(--ambient-trace); }
+    .ambient-extra { position:absolute; z-index:0; display:none; color:var(--ambient-text); border:1px solid var(--ambient-edge); border-radius:6px; background:var(--ambient-panel); opacity:.72; filter:blur(.45px); font:9px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace; left:50%; translate:-50% 0; animation:ambient-widget-float 11s ease-in-out infinite alternate; }
+    .ambient-bars { width:174px; padding:8px 10px 9px; }
+    .ambient-extra-title { display:block; margin-bottom:5px; letter-spacing:.08em; }
+    .ambient-bar-chart { height:42px; display:flex; align-items:end; gap:7px; border-bottom:1px solid var(--ambient-line); }
+    .ambient-bar-chart i { flex:1; height:var(--bar-height); border-radius:2px 2px 0 0; background:var(--ambient-trace); opacity:.65; animation:ambient-bar-pulse 2.8s ease-in-out infinite alternate; }
+    .ambient-bar-chart i:nth-child(2) { animation-delay:-.7s; }
+    .ambient-bar-chart i:nth-child(3) { animation-delay:-1.4s; }
+    .ambient-bar-chart i:nth-child(4) { animation-delay:-2.1s; }
+    .ambient-bar-chart i:nth-child(5) { animation-delay:-1s; }
+    .ambient-bar-chart i:nth-child(6) { animation-delay:-1.8s; }
+    .ambient-metric { width:164px; align-items:center; gap:10px; padding:9px; }
+    .ambient-ring { position:relative; width:38px; height:38px; flex:none; display:grid; place-items:center; border-radius:50%; background:conic-gradient(var(--ambient-trace) 0 72%,transparent 72% 100%); animation:ambient-ring-turn 18s linear infinite; }
+    .ambient-ring::after { position:absolute; inset:4px; border-radius:50%; background:var(--ambient-panel); content:""; }
+    .ambient-ring span { position:relative; z-index:1; font-size:8px; animation:ambient-ring-turn 18s linear infinite reverse; }
+    .ambient-metric-copy strong { display:block; font-size:12px; }
+    :root[data-ambient-template="1"] .ambient-bars { display:block; bottom:10%; animation-delay:-3s; }
+    :root[data-ambient-template="4"] .ambient-bars { display:block; top:68%; animation-delay:-7s; }
+    :root[data-ambient-template="2"] .ambient-metric { display:flex; top:32%; animation-delay:-5s; }
+    :root[data-ambient-template="3"] .ambient-metric { display:flex; bottom:14%; animation-delay:-9s; }
     .ambient-run { position:absolute; top:-10vh; width:220px; height:120vh; overflow:hidden; color:var(--ambient-text); filter:blur(.65px); font:11px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace; }
-    .ambient-run-left { left:3%; }
-    .ambient-run-right { right:3%; }
-    .ambient-track { animation:ambient-drift 100s linear infinite; }
-    .ambient-run-right .ambient-track { animation-duration:125s; animation-direction:reverse; }
+    .ambient-run-left { left:var(--ambient-left); top:var(--ambient-left-top); }
+    .ambient-run-right { right:var(--ambient-right); top:var(--ambient-right-top); }
+    .ambient-track { animation:ambient-drift var(--ambient-left-duration) linear infinite var(--ambient-left-direction); }
+    .ambient-run-right .ambient-track { animation-duration:var(--ambient-right-duration); animation-direction:var(--ambient-right-direction); }
     .ambient-set { height:60vh; display:flex; flex-direction:column; justify-content:space-around; padding:24px 0; }
     .ambient-table { border:1px solid var(--ambient-edge); border-radius:5px; background:var(--ambient-panel); }
     .ambient-row { display:grid; grid-template-columns:1fr 1.2fr .8fr; gap:8px; padding:3px 7px; border-bottom:1px solid var(--ambient-line); }
@@ -87,14 +146,20 @@
     .ambient-numbers { letter-spacing:.15em; line-height:2.2; word-spacing:.35em; }
     header, main { position:relative; z-index:1; }
     @keyframes ambient-drift { to { transform:translate3d(0,-50%,0); } }
+    @keyframes ambient-wave-flow { to { stroke-dashoffset:-240px; } }
+    @keyframes ambient-wave-glow { from { opacity:.48; } to { opacity:.9; } }
+    @keyframes ambient-wave-float { from { translate:0 -4px; } to { translate:0 6px; } }
+    @keyframes ambient-widget-float { from { transform:translateY(-5px); } to { transform:translateY(7px); } }
+    @keyframes ambient-bar-pulse { from { height:12%; } to { height:var(--bar-height); } }
+    @keyframes ambient-ring-turn { to { transform:rotate(360deg); } }
     @media(prefers-reduced-motion:reduce) {
-      .ambient-track { animation:none; }
+      .ambient-track,.ambient-wave,.ambient-chart,.ambient-extra,.ambient-bar-chart i,.ambient-ring,.ambient-ring span { animation:none; }
       body,header,.card,input,select,button,th,td,.ambient-table,.ambient-grid,.ambient-chart { transition:none; }
     }
     @media(max-width:600px) {
       .ambient-run { width:180px; }
-      .ambient-run-left { left:-112px; }
-      .ambient-run-right { right:-112px; }
+      .ambient-run-left { left:calc(var(--ambient-left) - 180px); }
+      .ambient-run-right { right:calc(var(--ambient-right) - 180px); }
     }
     @media(max-width:600px) { main { margin:16px auto; padding:0 10px; } .card { padding:15px; } }
   </style>
@@ -102,6 +167,15 @@
     (() => {
       if (localStorage.getItem('adrobot-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
       if (localStorage.getItem('adrobot-disable-animations') === 'true') document.documentElement.dataset.animations = 'off';
+      const storageKey = 'adrobot-ambient-template';
+      const storedTemplate = localStorage.getItem(storageKey);
+      const previous = storedTemplate === null ? -1 : Number(storedTemplate);
+      let selected = Math.floor(Math.random() * 5);
+      if (Number.isInteger(previous) && previous >= 0 && previous < 5 && selected === previous) {
+        selected = (previous + 1 + Math.floor(Math.random() * 4)) % 5;
+      }
+      document.documentElement.dataset.ambientTemplate = String(selected);
+      localStorage.setItem(storageKey, String(selected));
     })();
   </script>
 </head>
@@ -109,16 +183,32 @@
   <div class="ambient-data" aria-hidden="true">
     <div class="ambient-grid"></div>
     <svg class="ambient-chart" viewBox="0 0 900 280" preserveAspectRatio="none">
-      <g fill="none" stroke="#7184a2" stroke-width="1">
+      <g class="ambient-chart-grid">
         <path d="M0 40H900M0 100H900M0 160H900M0 220H900" stroke-dasharray="3 8"/>
         <path d="M80 0V260M260 0V260M440 0V260M620 0V260M800 0V260" stroke-dasharray="2 10"/>
-        <path d="M0 210C90 205 105 170 190 180S300 215 390 150 510 165 590 105 700 125 770 70 840 83 900 36" stroke="#607da9" stroke-width="2"/>
       </g>
-      <g fill="#607da9">
-        <circle cx="190" cy="180" r="3"/><circle cx="390" cy="150" r="3"/>
-        <circle cx="590" cy="105" r="3"/><circle cx="770" cy="70" r="3"/>
+      <path class="ambient-wave ambient-wave-0" d="M0 210C90 205 105 170 190 180S300 215 390 150 510 165 590 105 700 125 770 70 840 83 900 36"/>
+      <path class="ambient-wave ambient-wave-1" d="M0 176C88 118 130 226 218 170S354 104 440 162 558 218 642 140 775 94 900 160"/>
+      <path class="ambient-wave ambient-wave-2" d="M0 92C102 162 168 48 260 116S400 220 488 146 618 60 706 128 820 188 900 90"/>
+      <path class="ambient-wave ambient-wave-3" d="M0 194C86 184 130 96 220 128S350 230 440 188 560 82 640 116 790 218 900 126"/>
+      <path class="ambient-wave ambient-wave-4" d="M0 130C74 216 160 204 232 122S370 52 450 130 578 220 664 164 792 70 900 112"/>
+      <g>
+        <circle class="ambient-chart-dot" cx="190" cy="180" r="3"/><circle class="ambient-chart-dot" cx="390" cy="150" r="3"/>
+        <circle class="ambient-chart-dot" cx="590" cy="105" r="3"/><circle class="ambient-chart-dot" cx="770" cy="70" r="3"/>
       </g>
     </svg>
+    <div class="ambient-extra ambient-bars">
+      <span class="ambient-extra-title">ROI / 7D</span>
+      <div class="ambient-bar-chart">
+        <i style="--bar-height:38%"></i><i style="--bar-height:55%"></i>
+        <i style="--bar-height:46%"></i><i style="--bar-height:76%"></i>
+        <i style="--bar-height:62%"></i><i style="--bar-height:92%"></i>
+      </div>
+    </div>
+    <div class="ambient-extra ambient-metric">
+      <div class="ambient-ring"><span>4.2%</span></div>
+      <div class="ambient-metric-copy"><span class="ambient-extra-title">CONV. RATE</span><strong>+0.6%</strong></div>
+    </div>
     <div class="ambient-run ambient-run-left">
       <div class="ambient-track">
         <div class="ambient-set">

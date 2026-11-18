@@ -20,6 +20,18 @@
 </section>
 
 <section class="card">
+  <h2>Офферы в Keitaro</h2>
+  <p class="muted">Удаление оффера действует на весь Keitaro и может затронуть все кампании, где он используется.</p>
+  <div id="offers-msg" class="msg" role="status"></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Название</th><th>ID</th><th>Действие</th></tr></thead>
+      <tbody id="offers-list"><tr><td colspan="3" class="muted">Загрузка офферов…</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
   <h2>Открыть кампанию по ID из Keitaro</h2>
   <form id="open-form" class="row" style="align-items:end">
     <div><label for="campaign-id">ID кампании</label><input id="campaign-id" name="id" type="number" min="1" required></div>
@@ -29,6 +41,9 @@
 
 <section class="card">
   <h2>Созданные здесь кампании</h2>
+  {% if campaign_names_error %}
+  <p class="msg err" role="status">{{ campaign_names_error }}</p>
+  {% endif %}
   {% if campaigns %}
   <div class="table-wrap">
     <table>
@@ -50,20 +65,65 @@
 <script>
   const form = document.getElementById('create-form');
   const msg = document.getElementById('create-msg');
+  const offersMsg = document.getElementById('offers-msg');
+  const offersList = document.getElementById('offers-list');
+  let offers = [];
   const fill = (select, items, selected) => {
     select.innerHTML = '<option value="">Выберите…</option>' + items.map(item =>
       `<option value="${esc(item.id)}" ${Number(item.id) === Number(selected) ? 'selected' : ''}>${esc(item.name)} (#${esc(item.id)})</option>`
     ).join('');
   };
 
+  function renderOffers() {
+    fill(form.offer_id, offers);
+    offersList.innerHTML = offers.length
+      ? offers.map(offer => `<tr>
+          <td>${esc(offer.name)}</td><td>#${esc(offer.id)}</td>
+          <td><button class="danger" type="button" data-delete-offer="${esc(offer.id)}">Удалить из Keitaro</button></td>
+        </tr>`).join('')
+      : '<tr><td colspan="3" class="muted">Офферов нет.</td></tr>';
+    offersList.querySelectorAll('[data-delete-offer]').forEach(button => {
+      button.addEventListener('click', () => deleteOffer(button));
+    });
+  }
+
+  async function deleteOffer(button) {
+    const offerId = Number(button.dataset.deleteOffer);
+    const offer = offers.find(item => Number(item.id) === offerId);
+    if (!offer) {
+      offersMsg.className = 'msg err';
+      offersMsg.textContent = 'Не удалось определить выбранный оффер. Обновите страницу.';
+      return;
+    }
+    if (!window.confirm(`Удалить оффер «${offer.name}» (#${offerId}) из Keitaro? Это может повлиять на все кампании, где он используется.`)) return;
+
+    button.disabled = true;
+    offersMsg.className = 'msg muted';
+    offersMsg.textContent = `Удаляю оффер #${offerId}…`;
+    try {
+      await api('DELETE', `/api/offers/${offerId}`);
+      offers = offers.filter(item => Number(item.id) !== offerId);
+      renderOffers();
+      offersMsg.className = 'msg ok';
+      offersMsg.textContent = `Оффер #${offerId} удалён из Keitaro.`;
+    } catch (error) {
+      button.disabled = false;
+      offersMsg.className = 'msg err';
+      offersMsg.textContent = `Не удалось удалить оффер #${offerId}: ${error.message}`;
+    }
+  }
+
   api('GET', '/api/meta').then(meta => {
-    fill(form.offer_id, meta.offers);
+    offers = meta.offers;
+    renderOffers();
     fill(form.domain_id, meta.domains, meta.defaults.domain_id);
     fill(form.group_id, meta.groups, meta.defaults.group_id);
     fill(form.source_id, meta.sources, meta.defaults.source_id);
   }).catch(error => {
     msg.className = 'msg err';
     msg.textContent = 'Не удалось загрузить справочники: ' + error.message;
+    offersMsg.className = 'msg err';
+    offersMsg.textContent = 'Не удалось загрузить список офферов: ' + error.message;
   });
 
   form.addEventListener('submit', async event => {

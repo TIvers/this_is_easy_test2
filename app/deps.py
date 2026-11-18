@@ -14,3 +14,9 @@ def get_keitaro() -> KeitaroClient:
             detail="KEITARO_API_KEY не задан. Создайте .env по образцу .env.example.",
         )
     return KeitaroClient(settings.keitaro_url, settings.keitaro_api_key)
+
+
+def get_keitaro_if_configured() -> KeitaroClient | None:
+    if not settings.keitaro_api_key:
+        return None
+    return get_keitaro()

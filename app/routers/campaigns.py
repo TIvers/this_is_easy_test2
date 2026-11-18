@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -61,6 +61,15 @@ def create_campaign(
 @router.get("/campaigns")
 def list_campaigns(db: Session = Depends(get_db)):
     return list(db.scalars(select(Campaign).order_by(Campaign.created_at.desc())))
+
+
+@router.delete("/offers/{offer_id}")
+def delete_offer(
+    offer_id: int = Path(gt=0),
+    client: KeitaroClient = Depends(get_keitaro),
+):
+    client.delete_offer(offer_id)
+    return {"ok": True}
 
 
 @router.get("/campaigns/{campaign_id}")
