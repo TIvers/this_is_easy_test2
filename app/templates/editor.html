@@ -91,21 +91,22 @@
         return `<section class="${cardClass}">
           ${heading}
           <p class="muted">Редирект${stream.action_payload ? ' → ' + esc(stream.action_payload) : ''}.</p>
-          ${stream.is_base ? '' : `<button class="danger" onclick="deleteStream(${streamId})">Удалить поток</button>`}
+          ${stream.is_base ? '' : `<div class="stream-footer"><button class="danger" onclick="deleteStream(${streamId})">Удалить поток</button></div>`}
         </section>`;
       }
 
       const rows = stream.offers.map(offer => {
         const rowClass = offer.changed ? ` class="pending-change${offer.is_deleted ? ' removed-offer' : ''}"` : '';
         const offerControls = offer.is_deleted
-          ? `<span class="muted">Отмечен к удалению</span>
-             <button onclick="addOffer(${streamId}, ${offer.offer_id})">Восстановить</button>`
+          ? '<span class="muted">Отмечен к удалению</span>'
           : `<input aria-label="Доля оффера ${offer.offer_id}" type="number" min="0" max="100"
                value="${offer.share}" style="width:76px"
                onchange="setShare(${streamId}, ${offer.offer_id}, this.value)"> %
              ${offer.pinned ? `<button title="Открепить долю" aria-label="Открепить долю"
-               onclick="unpin(${streamId}, ${offer.offer_id})">📌</button>` : ''}
-             <button class="danger" onclick="removeOffer(${streamId}, ${offer.offer_id})">Удалить</button>`;
+               onclick="unpin(${streamId}, ${offer.offer_id})">📌</button>` : ''}`;
+        const offerAction = offer.is_deleted
+          ? `<button onclick="addOffer(${streamId}, ${offer.offer_id})">Восстановить</button>`
+          : `<button class="danger" onclick="removeOffer(${streamId}, ${offer.offer_id})">Удалить</button>`;
         return `<tr${rowClass}>
           <td>${esc(offer.name)} <span class="muted">#${offer.offer_id}</span>
             ${offer.is_new ? '<span class="muted">(новый)</span>' : ''}</td>
@@ -114,6 +115,7 @@
           <td class="num">${esc(offer.stats.conversions)}</td>
           <td class="num">${money(offer.stats.revenue)}</td>
           <td class="num">${percent(offer.stats.cr)}</td>
+          <td style="text-align:right;white-space:nowrap">${offerAction}</td>
         </tr>`;
       }).join('');
       const activeIds = new Set(stream.offers.filter(offer => !offer.is_deleted).map(offer => offer.offer_id));
@@ -125,8 +127,9 @@
         ${heading}
         <div class="table-wrap"><table>
           <thead><tr><th>Оффер</th><th>Доля / действия</th><th class="num">Клики</th>
-            <th class="num">Конверсии</th><th class="num">Доход</th><th class="num">CR</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="6" class="muted">Добавьте хотя бы один оффер</td></tr>'}</tbody>
+            <th class="num">Конверсии</th><th class="num">Доход</th><th class="num">CR</th>
+            <th style="text-align:right">Действие</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" class="muted">Добавьте хотя бы один оффер</td></tr>'}</tbody>
         </table></div>
         <p class="${validTotal ? 'total-ok' : 'total-bad'}">
           Сумма долей: ${stream.total}%${validTotal ? '' : ' (должно быть 100%)'}
@@ -139,9 +142,9 @@
               </select>
             </div>
             <div><button type="submit" ${options ? '' : 'disabled'}>Добавить оффер</button></div>
-            ${stream.is_base ? '' : `<div><button type="button" class="danger" onclick="deleteStream(${streamId})">Удалить поток</button></div>`}
           </div>
         </form>
+        ${stream.is_base ? '' : `<div class="stream-footer"><button type="button" class="danger" onclick="deleteStream(${streamId})">Удалить поток</button></div>`}
       </section>`;
     }).join('');
 
