@@ -31,7 +31,7 @@ def test_list_groups_requests_campaign_group_type():
     assert groups == [{"id": 1, "name": "Campaign group", "type": "campaigns"}]
 
 
-def test_list_campaigns_and_delete_offer_use_admin_api_endpoints():
+def test_list_campaigns_and_delete_campaign_use_admin_api_endpoints():
     seen = []
 
     def handler(request):
@@ -47,12 +47,12 @@ def test_list_campaigns_and_delete_offer_use_admin_api_endpoints():
     )
     try:
         campaigns = client.list_campaigns()
-        client.delete_offer(34)
+        client.delete_campaign(34)
     finally:
         client.close()
 
     assert campaigns == [{"id": 12, "name": "Updated campaign"}]
     assert seen == [
         ("GET", "/admin_api/v1/campaigns"),
-        ("DELETE", "/admin_api/v1/offers/34"),
+        ("DELETE", "/admin_api/v1/campaigns/34"),
     ]

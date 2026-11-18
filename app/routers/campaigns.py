@@ -7,7 +7,7 @@ from app.config import settings
 from app.db import get_db
 from app.deps import get_keitaro
 from app.keitaro.client import KeitaroClient
-from app.models import Campaign
+from app.models import Campaign, StreamDraft
 from app.services import campaigns as campaigns_service
 
 router = APIRouter(prefix="/api")
@@ -62,12 +62,24 @@ def list_campaigns(db: Session = Depends(get_db)):
     return list(db.scalars(select(Campaign).order_by(Campaign.created_at.desc())))
 
 
-@router.delete("/offers/{offer_id}")
-def delete_offer(
-    offer_id: int = Path(gt=0),
+@router.delete("/campaigns/{campaign_id}")
+def delete_campaign(
+    campaign_id: int = Path(gt=0),
+    db: Session = Depends(get_db),
     client: KeitaroClient = Depends(get_keitaro),
 ):
-    client.delete_offer(offer_id)
+    client.delete_campaign(campaign_id)
+    drafts = db.scalars(
+        select(StreamDraft).where(StreamDraft.campaign_id == campaign_id)
+    ).all()
+    for draft in drafts:
+        db.delete(draft)
+    campaign = db.scalar(
+        select(Campaign).where(Campaign.keitaro_id == campaign_id)
+    )
+    if campaign is not None:
+        db.delete(campaign)
+    db.commit()
     return {"ok": True}
 
 
