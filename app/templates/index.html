@@ -120,8 +120,17 @@
         source_id: Number(values.get('source_id'))
       });
       msg.className = 'msg ok';
-      msg.textContent = `Кампания #${result.keitaro_id} создана. Открываю редактор…`;
-      window.location.href = `/campaigns/${result.keitaro_id}`;
+      const requestedName = String(values.get('name')).trim();
+      const actualName = result.name || requestedName;
+      if (actualName !== requestedName) {
+        msg.textContent = `Это имя зарезервировано в архиве Keitaro. Кампания создана под именем «${actualName}». Открываю редактор…`;
+        window.setTimeout(() => {
+          window.location.href = `/campaigns/${result.keitaro_id}`;
+        }, 1800);
+      } else {
+        msg.textContent = `Кампания #${result.keitaro_id} создана. Открываю редактор…`;
+        window.location.href = `/campaigns/${result.keitaro_id}`;
+      }
     } catch (error) {
       msg.className = 'msg err';
       msg.textContent = error.message;
