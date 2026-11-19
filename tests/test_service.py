@@ -116,6 +116,7 @@ def test_create_campaign_builds_two_streams(db):
     )
     assert c.keitaro_id == 777 and c.geo == "PL" and c.name == "Test"
     assert kt.campaigns[0]["alias"].startswith("test-")
+    assert len(kt.campaigns[0]["alias"]) <= 50
     assert kt.campaigns[0]["domain_id"] == 1
     assert kt.campaigns[0]["group_id"] == 2
     assert kt.campaigns[0]["traffic_source_id"] == 3
@@ -127,6 +128,20 @@ def test_create_campaign_builds_two_streams(db):
     assert offer_stream["position"] == 2
     assert offer_stream["action_type"] == "http"
     assert offer_stream["offers"] == [{"offer_id": 3, "share": 100, "state": "active"}]
+
+
+def test_campaign_alias_is_limited_to_keitaro_max_length(db):
+    kt = FakeKeitaro()
+    long_name = "A" * 255
+
+    campaigns_service.create_campaign(
+        db, kt, name=long_name, geo="PL", offer_id=3,
+        domain_id=1, group_id=2, source_id=3,
+    )
+
+    alias = kt.campaigns[0]["alias"]
+    assert len(alias) == 50
+    assert len(alias.rsplit("-", 1)[1]) == 16
 
 
 def test_create_campaign_retries_archived_name_with_unique_name(db):

@@ -97,7 +97,7 @@ def create_campaign(
         raise ValueError(f"Оффер {offer_id} не найден в Keitaro")
 
     alias_base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "campaign"
-    alias = f"{alias_base[:40]}-{uuid4().hex}"
+    alias = f"{alias_base[:33]}-{uuid4().hex[:16]}"
     created = _create_campaign_with_available_name(
         client,
         {
