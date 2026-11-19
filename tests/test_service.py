@@ -129,6 +129,58 @@ def test_create_campaign_builds_two_streams(db):
     assert offer_stream["offers"] == [{"offer_id": 3, "share": 100, "state": "active"}]
 
 
+def test_create_campaign_retries_archived_name_with_unique_name(db):
+    kt = FakeKeitaro()
+    create_campaign = kt.create_campaign
+    requested_names = []
+
+    def create_with_archive_conflict(payload):
+        requested_names.append(payload["name"])
+        if len(requested_names) == 1:
+            raise KeitaroError(
+                "Keitaro POST /campaigns -> 422",
+                422,
+                '{"name":["Name has already been used in the archive"]}',
+            )
+        result = create_campaign(payload)
+        result["name"] = payload["name"]
+        return result
+
+    kt.create_campaign = create_with_archive_conflict
+    campaign = campaigns_service.create_campaign(
+        db, kt, name="Test", geo="PL", offer_id=3,
+        domain_id=1, group_id=2, source_id=3,
+    )
+
+    assert requested_names[0] == "Test"
+    assert requested_names[1].startswith("Test (")
+    assert requested_names[1].endswith(")")
+    assert campaign.name == requested_names[1]
+    assert len(kt.streams) == 2
+
+
+def test_create_campaign_does_not_retry_other_keitaro_422_errors(db):
+    kt = FakeKeitaro()
+    requested_names = []
+
+    def reject_campaign(payload):
+        requested_names.append(payload["name"])
+        raise KeitaroError(
+            "Keitaro POST /campaigns -> 422",
+            422,
+            '{"name":["Name is invalid"]}',
+        )
+
+    kt.create_campaign = reject_campaign
+    with pytest.raises(KeitaroError, match="422"):
+        campaigns_service.create_campaign(
+            db, kt, name="Test", geo="PL", offer_id=3,
+            domain_id=1, group_id=2, source_id=3,
+        )
+
+    assert requested_names == ["Test"]
+
+
 def test_create_campaign_rolls_back_on_stream_error(db):
     kt = FakeKeitaro(fail_second_stream=True)
     with pytest.raises(KeitaroError):

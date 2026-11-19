@@ -5,7 +5,7 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.keitaro.client import KeitaroClient
+from app.keitaro.client import KeitaroClient, KeitaroError
 from app.models import Campaign
 
 log = logging.getLogger(__name__)
@@ -46,6 +46,28 @@ def build_offer_stream(campaign_id: int, offer_id: int) -> dict:
     }
 
 
+def _create_campaign_with_available_name(client: KeitaroClient, payload: dict) -> dict:
+    try:
+        return client.create_campaign(payload)
+    except KeitaroError as exc:
+        archive_name_conflict = (
+            exc.status_code == 422
+            and "name has already been used in the archive" in (exc.body or "").lower()
+        )
+        if not archive_name_conflict:
+            raise
+
+    suffix = f" ({uuid4().hex[:8]})"
+    payload = {
+        **payload,
+        "name": f"{payload['name'][:255 - len(suffix)]}{suffix}",
+    }
+    created = client.create_campaign(payload)
+    if not created.get("name"):
+        return {**created, "name": payload["name"]}
+    return created
+
+
 def create_campaign(
     db: Session,
     client: KeitaroClient,
@@ -76,7 +98,8 @@ def create_campaign(
 
     alias_base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "campaign"
     alias = f"{alias_base[:40]}-{uuid4().hex}"
-    created = client.create_campaign(
+    created = _create_campaign_with_available_name(
+        client,
         {
             "name": name,
             "alias": alias,
@@ -85,8 +108,9 @@ def create_campaign(
             "domain_id": domain_id,
             "group_id": group_id,
             "traffic_source_id": source_id,
-        }
+        },
     )
+    name = str(created.get("name") or name)
     keitaro_id = int(created["id"])
     try:
         client.create_stream(build_geo_stream(keitaro_id, geo, settings.redirect_url))
